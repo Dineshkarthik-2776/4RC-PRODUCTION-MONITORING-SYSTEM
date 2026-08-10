@@ -1,0 +1,708 @@
+/* ============================================
+   SETUP DETAILS COMPONENT
+   Using sd- prefix (SetupDetails) to avoid conflicts
+   ============================================ */
+
+.sd-container {
+  width: 100%;
+  padding: 0;
+}
+
+.sd-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0;
+  text-align: center;
+}
+
+.sd-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.sd-view-toggle {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1E40AF;
+  background: #DBEAFE;
+  border: 1px solid #93C5FD;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sd-view-toggle:hover {
+  background: #BFDBFE;
+  border-color: #60A5FA;
+}
+
+/* ============================================
+   LOADING STATE
+   ============================================ */
+.sd-loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+}
+
+.sd-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #E5E7EB;
+  border-top-color: #FFD500;
+  border-radius: 50%;
+  animation: sd-spin 0.8s linear infinite;
+}
+
+@keyframes sd-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sd-loading-text {
+  margin-top: 16px;
+  font-size: 15px;
+  color: #6B7280;
+}
+
+/* ============================================
+   ERROR STATE
+   ============================================ */
+.sd-error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 8px;
+}
+
+.sd-error-icon {
+  width: 48px;
+  height: 48px;
+  color: #DC2626;
+  margin-bottom: 12px;
+}
+
+.sd-error-text {
+  font-size: 15px;
+  color: #991B1B;
+  text-align: center;
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+.sd-empty-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+}
+
+.sd-empty-icon {
+  width: 64px;
+  height: 64px;
+  color: #9CA3AF;
+  margin-bottom: 16px;
+}
+
+.sd-empty-text {
+  font-size: 16px;
+  color: #6B7280;
+  text-align: center;
+}
+
+/* ============================================
+   MAIN TABLE - BLUE COLOR SCHEME
+   ============================================ */
+.sd-table-wrapper {
+  overflow-x: auto;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.sd-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #FFFFFF;
+}
+
+.sd-thead {
+  background: linear-gradient(135deg, #1E3A8A 0%, #1E40AF 100%);
+  color: #FFFFFF;
+}
+
+.sd-th {
+  padding: 14px 16px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.sd-th-left {
+  text-align: left;
+}
+
+.sd-tr {
+  transition: background 0.2s ease;
+}
+
+/* Dark Blue for Even Rows */
+.sd-even {
+  background: #DBEAFE;
+}
+
+/* Light Blue for Odd Rows */
+.sd-odd {
+  background: #EFF6FF;
+}
+
+.sd-tr:hover {
+  background: #BFDBFE;
+}
+
+.sd-row-clickable {
+  cursor: pointer;
+}
+
+.sd-td {
+  padding: 14px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: #1F2937;
+  border-bottom: 1px solid #93C5FD;
+}
+
+.sd-td-left {
+  text-align: left;
+}
+
+.sd-td-bold {
+  font-weight: 600;
+  color: #1E40AF;
+}
+
+.sd-count {
+  text-align: center;
+  font-weight: 600;
+  color: #2563EB;
+}
+
+.sd-overshoot {
+  color: #DC2626;
+  font-weight: 600;
+}
+
+.sd-normal {
+  color: #059669;
+  font-weight: 500;
+}
+
+/* ============================================
+   ACTION BUTTON
+   ============================================ */
+.sd-btn-action {
+  padding: 8px 16px;
+  background: #2563EB;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.sd-btn-action:hover {
+  background: #1D4ED8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+}
+
+/* ============================================
+   MODAL OVERLAY & POPUP
+   ============================================ */
+.sd-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  animation: sd-fadeIn 0.2s ease-out;
+}
+
+@keyframes sd-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sd-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 95%;
+  max-width: 1200px;
+  max-height: 90vh;
+  z-index: 1001;
+  animation: sd-slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.sd-modal-single {
+  width: 96%;
+  max-width: 1400px;
+}
+
+@keyframes sd-slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -45%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.sd-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 28px;
+  border-bottom: 1px solid #E5E7EB;
+  background: linear-gradient(135deg, #DBEAFE 0%, #EFF6FF 100%);
+}
+
+.sd-modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1E40AF;
+  margin: 0;
+}
+
+.sd-modal-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F3F4F6;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sd-modal-close svg {
+  width: 20px;
+  height: 20px;
+  color: #6B7280;
+}
+
+.sd-modal-close:hover {
+  background: #E5E7EB;
+}
+
+.sd-modal-body {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+.sd-single-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sd-single-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.sd-single-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.sd-single-item-full {
+  grid-column: 1 / -1;
+}
+
+.sd-single-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #1e40af;
+}
+
+.sd-single-value {
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.sd-single-wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sd-single-form {
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  display: block;
+}
+
+.sd-single-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sd-single-inline-row {
+  display: grid;
+  grid-template-columns: 22% 60% 18%;
+  gap: 12px;
+  align-items: end;
+}
+
+.sd-single-inline-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sd-inline-action {
+  justify-content: flex-end;
+}
+
+.sd-textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.sd-single-select {
+  width: 100%;
+  height: 40px;
+  font-size: 14px;
+}
+
+.sd-single-reason {
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.sd-inline-reason .sd-input {
+  width: 100%;
+  min-width: 100%;
+}
+
+.sd-single-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sd-btn-secondary {
+  padding: 9px 14px;
+  background: #ffffff;
+  color: #1f2937;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sd-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.sd-btn-save-primary {
+  min-width: 130px;
+  height: 40px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .sd-single-inline-row {
+    grid-template-columns: 1fr;
+  }
+
+  .sd-inline-action {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1100px) {
+  .sd-single-grid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .sd-single-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sd-modal-footer {
+  padding: 16px 28px;
+  border-top: 1px solid #E5E7EB;
+  text-align: center;
+  background: #F9FAFB;
+}
+
+/* ============================================
+   DETAIL TABLE - BLUE SCHEME
+   ============================================ */
+.sd-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+
+.sd-detail-thead {
+  background: #1E40AF;
+  color: #FFFFFF;
+}
+
+.sd-detail-th {
+  padding: 12px 10px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 2px solid #1E3A8A;
+  white-space: nowrap;
+}
+
+.sd-detail-tr {
+  transition: background 0.2s ease;
+}
+
+/* Dark Blue for Even Rows */
+.sd-detail-even {
+  background: #DBEAFE;
+}
+
+/* Light Blue for Odd Rows */
+.sd-detail-odd {
+  background: #EFF6FF;
+}
+
+.sd-detail-tr:hover {
+  background: #BFDBFE;
+}
+
+.sd-detail-td {
+  padding: 12px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: #1F2937;
+  border-bottom: 1px solid #93C5FD;
+}
+
+.sd-material {
+  font-weight: 600;
+  color: #1E40AF;
+}
+
+.sd-detail-overshoot {
+  color: #DC2626;
+  font-weight: 600;
+}
+
+.sd-detail-normal {
+  color: #059669;
+  font-weight: 500;
+}
+
+/* ============================================
+   FORM ELEMENTS
+   ============================================ */
+.sd-select {
+  width: 120px;
+  padding: 6px 10px;
+  border: 1.5px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sd-select:focus {
+  outline: none;
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Highlight when reason is already filled */
+.sd-select-filled {
+  border-color: #10B981;
+  background: #ECFDF5;
+  font-weight: 600;
+}
+
+.sd-input {
+  width: 180px;
+  padding: 6px 10px;
+  border: 1.5px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+  transition: all 0.2s ease;
+}
+
+.sd-input:focus {
+  outline: none;
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Highlight when reason is already filled */
+.sd-input-filled {
+  border-color: #10B981;
+  background: #ECFDF5;
+  font-weight: 600;
+}
+
+.sd-input::placeholder {
+  color: #9CA3AF;
+}
+
+.sd-btn-save {
+  padding: 6px 14px;
+  background: #10B981;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sd-btn-save:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.sd-btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sd-btn-loader {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: sd-spin 0.6s linear infinite;
+}
+
+.sd-btn-close {
+  padding: 10px 28px;
+  background: #EF4444;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sd-btn-close:hover {
+  background: #DC2626;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 1024px) {
+  .sd-modal {
+    width: 98%;
+  }
+
+  .sd-modal-header,
+  .sd-modal-body,
+  .sd-modal-footer {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .sd-title {
+    font-size: 20px;
+  }
+
+  .sd-header {
+    gap: 10px;
+  }
+
+  .sd-view-toggle {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+
+  .sd-th,
+  .sd-td {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .sd-input {
+    width: 140px;
+  }
+
+  .sd-select {
+    width: 100px;
+  }
+}

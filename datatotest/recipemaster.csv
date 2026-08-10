@@ -1,0 +1,28 @@
+﻿recipe_code,target_speed,recipe_type
+BRTTL,40,fabric
+CAP 30,20,fabric
+CP 034 HI,35,steel
+CP 500,25,steel
+CP 51,27,steel
+CP 650,28,steel
+CP 700,35,steel
+CP 840,27,steel
+CP200,40,steel
+CP31151,30,steel
+CP56542,40,steel
+CPJ 120,40,steel
+CPJ 1218,40,steel
+CPJ114,27,steel
+CPJ121,30,steel
+CPJ370,10,steel
+CWBHTCP100,40,steel
+ECOPOLY 13,40,fabric
+ECOPOLY 350,30,fabric
+ECOPOLY1500,40,fabric
+EHT1000,45,fabric
+HIRAD,45,fabric
+HTPOLY1300,40,fabric
+HTPOLY350,40,fabric
+MONOCHAFFER,20,fabric
+NYLRAD,45,fabric
+POLYESTER,45,fabric

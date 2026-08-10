@@ -1,0 +1,480 @@
+/* ============================================
+   HEADER - COMPACT & PROFESSIONAL
+   Using h- prefix to avoid CSS conflicts
+   ============================================ */
+
+.h-header {
+  width: 100%;
+  height: 60px;
+  background: #ffc107;
+  border-bottom: 1px solid #E5E7EB;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 32px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Logo Section - Left */
+.h-logo-container {
+  display: flex;
+  align-items: center;
+}
+
+.h-logo {
+  height: 40px;
+  width: auto;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.h-logo:hover {
+  transform: scale(1.02);
+}
+
+/* Right Section - Icons + User */
+.h-right-section {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.h-doc-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid #D1D5DB;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.h-doc-button:hover {
+  transform: translateY(-1px);
+  background: #FFF7D6;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.h-doc-button:active {
+  transform: translateY(0);
+}
+
+.h-doc-icon {
+  width: 18px;
+  height: 18px;
+  color: #B45309;
+  flex-shrink: 0;
+}
+
+/* ============================================
+   NOTIFICATION BELL ICON
+   ============================================ */
+.h-notification-icon {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.h-notification-icon:hover {
+  transform: scale(1.1);
+}
+
+.h-bell-icon {
+  width: 24px;
+  height: 24px;
+  color: #6B7280;
+  transition: color 0.2s ease;
+}
+
+.h-notification-icon:hover .h-bell-icon {
+  color: #000000;
+}
+
+.h-notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #EF4444;
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid #FFFFFF;
+}
+
+/* ============================================
+   USER DROPDOWN
+   ============================================ */
+.h-user-dropdown {
+  position: relative;
+}
+
+.h-user-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.h-user-button:hover {
+  background: #b58a07;
+}
+
+.h-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #FFD500;
+}
+
+.h-user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1F2937;
+  display: none;
+}
+
+.h-chevron-icon {
+  width: 16px;
+  height: 16px;
+  color: #6B7280;
+  transition: transform 0.2s ease;
+}
+
+.h-chevron-open {
+  transform: rotate(180deg);
+}
+
+/* Show username on larger screens */
+@media (min-width: 768px) {
+  .h-user-name {
+    display: block;
+  }
+}
+
+/* ============================================
+   DROPDOWN MENU - HIGH Z-INDEX
+   ============================================ */
+.h-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  z-index: 9999;
+  animation: h-dropdownSlideIn 0.2s ease-out;
+  overflow: hidden;
+}
+
+@keyframes h-dropdownSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dropdown Header */
+.h-dropdown-header {
+  padding: 16px;
+  background: #F9FAFB;
+}
+
+.h-dropdown-user-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 4px 0;
+}
+
+.h-dropdown-user-email {
+  font-size: 13px;
+  color: #6B7280;
+  margin: 0;
+  word-break: break-word;
+}
+
+.h-dropdown-divider {
+  height: 1px;
+  background: #E5E7EB;
+}
+
+/* Dropdown Item */
+.h-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  transition: background 0.2s ease;
+  text-align: left;
+}
+
+.h-dropdown-item:hover {
+  background: #F3F4F6;
+}
+
+.h-logout-button {
+  color: #DC2626;
+}
+
+.h-logout-button:hover {
+  background: #FEF2F2;
+}
+
+.h-logout-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================
+   CORRECTION REQUESTS MODAL
+   ============================================ */
+.h-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.h-correction-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  width: 90%;
+  max-width: 800px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.h-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.h-modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.h-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #6B7280;
+  transition: color 0.2s;
+}
+
+.h-modal-close:hover {
+  color: #111827;
+}
+
+.h-modal-close svg {
+  width: 24px;
+  height: 24px;
+}
+
+.h-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.h-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6B7280;
+}
+
+.h-empty-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  color: #D1D5DB;
+}
+
+.h-requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.h-request-card {
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 20px;
+  background: #FAFAFA;
+}
+
+.h-request-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.h-request-id {
+  font-weight: 700;
+  color: #111827;
+}
+
+.h-request-changeover {
+  font-size: 13px;
+  color: #6B7280;
+}
+
+.h-request-info {
+  margin-bottom: 16px;
+}
+
+.h-request-user {
+  font-size: 14px;
+  color: #374151;
+  margin: 4px 0;
+}
+
+.h-request-changes {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: white;
+  border-radius: 6px;
+}
+
+.h-change-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6B7280;
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+}
+
+.h-change-section p {
+  font-size: 14px;
+  color: #111827;
+  margin: 4px 0;
+}
+
+.h-arrow {
+  display: flex;
+  align-items: center;
+  font-size: 24px;
+  color: #FFD500;
+  font-weight: bold;
+}
+
+.h-request-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.h-btn-approve,
+.h-btn-reject {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.h-btn-approve {
+  background: #10B981;
+  color: white;
+}
+
+.h-btn-approve:hover:not(:disabled) {
+  background: #059669;
+}
+
+.h-btn-reject {
+  background: #EF4444;
+  color: white;
+}
+
+.h-btn-reject:hover:not(:disabled) {
+  background: #DC2626;
+}
+
+.h-btn-approve:disabled,
+.h-btn-reject:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+  .h-header {
+    padding: 0 16px;
+    height: 56px;
+  }
+
+  .h-logo {
+    height: 32px;
+  }
+
+  .h-right-section {
+    gap: 16px;
+  }
+
+  .h-user-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .h-dropdown-menu {
+    width: 220px;
+  }
+}

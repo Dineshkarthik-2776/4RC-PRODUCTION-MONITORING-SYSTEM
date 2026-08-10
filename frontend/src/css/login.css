@@ -1,0 +1,413 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   SPLIT SCREEN LAYOUT
+   ============================================ */
+.login-wrapper {
+  display: flex;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* ============================================
+   LEFT PANEL - MINIMAL PROFESSIONAL
+   ============================================ */
+.left-panel {
+  flex: 1;
+  background: linear-gradient(135deg, #F8F9FA 0%, #e4e4e4 100%);
+  flex-direction: column;
+  align-items: center; 
+  padding: 80px 60px;
+  position: relative;
+}
+
+/* Brand Section - Top Center */
+.brand-section {
+  margin-top: 11rem;
+  text-align: center;
+  align-items: center;
+  animation: fadeInDown 0.8s ease-out;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.brand-logo {
+  display: block;
+  text-align: center;
+  width: 340px;
+  height: auto;
+  margin: auto;
+  margin-bottom: 32px;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.04));
+}
+
+.brand-title {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #1F2937;
+  margin-bottom: 12px;
+  letter-spacing: -0.5px;
+}
+
+.brand-tagline {
+  font-size: 15px;
+  font-weight: 400;
+  color: #6B7280;
+  font-style: italic;
+}
+
+/* Visual Element - Center */
+.visual-element {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 1s ease-out 0.3s both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Footer Text - Bottom Center */
+.footer-text {
+  text-align: center;
+  animation: fadeIn 1s ease-out 0.6s both;
+  margin-top: 13rem;
+}
+
+.footer-text p {
+  font-size: 1rem;
+  color: #9CA3AF;
+}
+
+/* ============================================
+   RIGHT PANEL - LOGIN FORM
+   ============================================ */
+.right-panel {
+  flex: 1;
+  background: #FFFFFF;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  animation: slideInRight 0.6s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.card-header {
+  margin-bottom: 32px;
+}
+
+.login-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.login-subtitle {
+  font-size: 15px;
+  color: #6B7280;
+  line-height: 1.5;
+}
+
+/* ============================================
+   ERROR BANNER - AMAZON/INSTAGRAM STYLE
+   ============================================ */
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 6px;
+  margin-bottom: 24px;
+  animation: shakeError 0.4s ease-out;
+}
+
+@keyframes shakeError {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.error-icon {
+  width: 18px;
+  height: 18px;
+  color: #DC2626;
+  flex-shrink: 0;
+}
+
+.error-text {
+  font-size: 14px;
+  color: #991B1B;
+  line-height: 1.4;
+  flex: 1;
+}
+
+/* ============================================
+   FORM - ORIGINAL DESIGN PRESERVED
+   ============================================ */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  color: #111827;
+  background: #FFFFFF;
+  border: 1.5px solid #D1D5DB;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #FFD500;
+  box-shadow: 0 0 0 3px rgba(255, 213, 0, 0.1);
+}
+
+.form-input::placeholder {
+  color: #9CA3AF;
+}
+
+.form-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  margin-top: -8px;
+  margin-bottom: 0;  /* ADD THIS LINE */
+  width: 100%; 
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6B7280;
+  cursor: pointer;
+}
+
+.remember-me input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #FFD500;
+}
+
+.forgot-password {
+  color: #FFD500;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.forgot-password:hover {
+  color: #000000;
+}
+
+/* Submit Button - FIXED ALIGNMENT */
+.submit-btn {
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #000000;
+  background: #FFD500;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-left: 0;    /* ADD THIS LINE */
+  margin-right: 0;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: #FFC700;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 213, 0, 0.25);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #000000;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toggle-auth {
+  text-align: center;
+  margin-top: 28px;
+  font-size: 14px;
+  color: #6B7280;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  color: #FFD500;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.toggle-btn:hover {
+  color: #000000;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 1024px) {
+  .left-panel {
+    padding: 60px 40px;
+  }
+
+  .brand-logo {
+    width: 200px;
+  }
+  
+  .brand-title {
+    font-size: 24px;
+  }
+
+  .tyre-circle {
+    width: 160px;
+    height: 160px;
+  }
+
+  .tyre-ring {
+    width: 110px;
+    height: 110px;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-wrapper {
+    flex-direction: column;
+  }
+
+  .left-panel {
+    padding: 40px 24px;
+    min-height: 40vh;
+  }
+
+  .brand-logo {
+    width: 160px;
+    margin-bottom: 20px;
+  }
+
+  .brand-title {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .brand-tagline {
+    font-size: 13px;
+  }
+
+  .visual-element {
+    display: none;
+  }
+
+  .footer-text {
+    display: none;
+  }
+
+  .right-panel {
+    padding: 30px 24px;
+  }
+
+  .login-card {
+    max-width: 100%;
+  }
+
+  .login-title {
+    font-size: 26px;
+  }
+}

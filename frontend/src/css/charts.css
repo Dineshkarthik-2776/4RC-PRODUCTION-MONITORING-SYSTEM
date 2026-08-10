@@ -1,0 +1,185 @@
+/* ============================================
+   CHARTS CONTAINER - 3 COLUMNS LAYOUT
+   ============================================ */
+.chart-container {
+  margin: 0;
+  padding: 2rem 1rem 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 1.5rem;
+  align-content: flex-start;
+  width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  margin-top: 1rem;
+}
+
+.chart {
+  flex: 1 1 calc(33.333% - 2rem);
+  max-width: 32%;
+  min-width: 280px;
+  height: 360px;
+  border: 1px solid rgb(181, 180, 180);
+  border-radius: 1rem;
+  box-shadow: 6px 6px 12px rgba(0, 0, 0, 0.3);
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.chart-full-width {
+  flex: 1 1 100%;
+  max-width: 100%;
+  height: 420px;
+}
+
+/* Individual chart background colors */
+.chart:nth-child(1) {
+  background-color: #bdc2bf;
+}
+
+.chart:nth-child(2) {
+  background-color: #7eb2dd;
+}
+
+.chart:nth-child(3) {
+  background-color: #aa9dbe;
+}
+
+.chart:nth-child(4) {
+  background: #b8dbd9;
+}
+
+.chart:nth-child(5) {
+  background-color: #edd3c4;
+}
+
+.chart:nth-child(6) {
+  background-color: #f5d7e3;
+}
+
+.chart:nth-child(7) {
+  background-color: #f9e4e2;
+}
+
+/* ============================================
+   LOADING STATE (using ch- prefix)
+   ============================================ */
+.ch-loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  width: 100%;
+  height: 400px;
+}
+
+.ch-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #E5E7EB;
+  border-top-color: #FFD500;
+  border-radius: 50%;
+  animation: ch-spin 0.8s linear infinite;
+}
+
+@keyframes ch-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ch-loading-text {
+  margin-top: 16px;
+  font-size: 15px;
+  color: #6B7280;
+  font-weight: 500;
+}
+
+/* ============================================
+   ERROR STATE (using ch- prefix)
+   ============================================ */
+.ch-error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 12px;
+  margin: 20px;
+}
+
+.ch-error-icon {
+  width: 48px;
+  height: 48px;
+  color: #DC2626;
+  margin-bottom: 12px;
+}
+
+.ch-error-text {
+  font-size: 15px;
+  color: #991B1B;
+  text-align: center;
+  max-width: 500px;
+}
+
+/* ============================================
+   EMPTY STATE (using ch- prefix)
+   ============================================ */
+.ch-empty-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+  width: 100%;
+  height: 400px;
+  justify-content: center;
+}
+
+.ch-empty-icon {
+  width: 64px;
+  height: 64px;
+  color: #9CA3AF;
+  margin-bottom: 16px;
+}
+
+.ch-empty-text {
+  font-size: 16px;
+  color: #6B7280;
+  text-align: center;
+  max-width: 500px;
+}
+
+/* ============================================
+   RESPONSIVE - MAINTAIN 3 COLUMNS
+   ============================================ */
+@media (max-width: 1400px) {
+  .chart {
+    flex: 1 1 calc(33.333% - 1.5rem);
+    max-width: 32%;
+  }
+}
+
+@media (max-width: 1024px) {
+  .chart {
+    flex: 1 1 calc(50% - 1.5rem);
+    max-width: 48%;
+    height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  .chart-container {
+    padding: 0.5rem;
+    column-gap: 1rem;
+  }
+
+  .chart {
+    flex: 1 1 100%;
+    max-width: 100%;
+    height: 350px;
+    margin-bottom: 1rem;
+  }
+}

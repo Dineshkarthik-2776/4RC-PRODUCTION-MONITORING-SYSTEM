@@ -1,0 +1,20 @@
+# Logs
+logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+venv/
+.env
+
+# IDE / Editor files
+.idea/
+.vscode/
+
+# Node / JS
+node_modules/
+dist/
+dist-ssr/

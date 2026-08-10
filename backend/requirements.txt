@@ -1,0 +1,15 @@
+Django~=6.0
+celery~=5.6.0
+djangorestframework~=3.16.1
+matplotlib~=3.10.7
+numpy~=2.2.6
+tqdm~=4.67.1
+pandas
+django-cors-headers
+mysqlclient
+redis
+reportlab
+XlsxWriter
+openpyxl
+pillow
+python-dotenv

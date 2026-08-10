@@ -1,0 +1,275 @@
+/* ============================================
+   DATE INPUT COMPONENT
+   Using dip- prefix (DateIP) to avoid conflicts
+   ============================================ */
+
+.dip-header {
+  text-align: center;
+  padding: 40px 0 32px 0;
+}
+
+.dip-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.dip-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 96%;
+  margin: 0 auto;
+  padding: 0 20px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dip-left-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+/* Filter Select Dropdowns */
+.dip-filter-select {
+  padding: 10px 16px;
+  border: 1.5px solid #D1D5DB;
+  border-radius: 8px;
+  min-width: 150px;
+  font-size: 14px;
+  font-weight: 500;
+  background: #FFFFFF;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dip-filter-select:hover {
+  border-color: #FFD500;
+}
+
+.dip-filter-select:focus {
+  outline: none;
+  border-color: #FFD500;
+  box-shadow: 0 0 0 3px rgba(255, 213, 0, 0.1);
+}
+
+/* Date Input Field */
+.dip-date-input {
+  padding: 10px 16px;
+  border: 1.5px solid #D1D5DB;
+  border-radius: 8px;
+  cursor: pointer;
+  min-width: 260px;
+  font-size: 14px;
+  font-weight: 500;
+  background: #FFFFFF;
+  color: #374151;
+  transition: all 0.2s ease;
+}
+
+.dip-date-input-single {
+  min-width: 180px;
+}
+
+.dip-date-input:hover {
+  border-color: #FFD500;
+}
+
+.dip-date-input:focus {
+  outline: none;
+  border-color: #FFD500;
+  box-shadow: 0 0 0 3px rgba(255, 213, 0, 0.1);
+}
+
+/* Calendar Popup */
+.dip-calendar-popup {
+  position: absolute;
+  top: 48px;
+  left: 0;
+  z-index: 1000;
+  background: #FFFFFF;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  overflow: hidden;
+  animation: dip-slideDown 0.2s ease-out;
+}
+
+@keyframes dip-slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Buttons */
+.dip-submit-btn, 
+.dip-report-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+}
+
+.dip-submit-btn {
+  background: #FFD500;
+  color: #000000;
+}
+
+.dip-submit-btn:hover:not(:disabled) {
+  background: #FFC700;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 213, 0, 0.25);
+}
+
+.dip-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dip-report-btn {
+  background: #3B82F6;
+  color: #FFFFFF;
+}
+
+.dip-report-btn:hover {
+  background: #2563EB;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+}
+
+.dip-excel-btn {
+  background: #10B981;
+  color: #FFFFFF;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dip-logs-btn {
+  background: #DC2626;
+  color: #FFFFFF;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dip-logs-btn:hover {
+  background: #B91C1C;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+
+.dip-excel-btn:hover {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.dip-btn-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Button Loader */
+.dip-btn-loader {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #000000;
+  border-radius: 50%;
+  animation: dip-spin 0.6s linear infinite;
+}
+
+@keyframes dip-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error Text */
+.dip-error-text {
+  font-size: 13px;
+  color: #DC2626;
+  font-weight: 500;
+  padding: 8px 12px;
+  background: #FEF2F2;
+  border-radius: 6px;
+  border: 1px solid #FCA5A5;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+  .dip-header {
+    padding: 24px 0 20px 0;
+  }
+
+  .dip-title {
+    font-size: 22px;
+  }
+
+  .dip-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .dip-left-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .dip-date-input {
+    min-width: 100%;
+  }
+
+  .dip-submit-btn,
+  .dip-report-btn,
+  .dip-excel-btn,
+  .dip-logs-btn {
+    width: 100%;
+  }
+
+  .dip-btn-group {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .dip-calendar-popup {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
