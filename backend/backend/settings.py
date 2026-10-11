@@ -122,6 +122,26 @@ DATABASES = {
 # ============================================================
 AUTH_USER_MODEL = 'user_authentication.User'
 
+# Employees choose their own password when they claim their roster account,
+# so these are the only thing standing between the plant and '12345678'.
+# Django ships with none configured by default.
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.'
+                'UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 8},
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
@@ -173,7 +193,11 @@ CELERY_BEAT_SCHEDULE = {
     },
     'sync-recipe-master-daily-at-7am': {
         'task': 'sync_recipe_master_from_bom',
-        'schedule': crontab(hour=1, minute=30),
+        # CELERY_TIMEZONE is Asia/Kolkata, so this crontab is read in IST --
+        # write the local time you want directly. It previously said
+        # hour=1, minute=30, which is 7:00 IST expressed in UTC; because
+        # Celery reads it as IST, the sync actually ran at 01:30 IST.
+        'schedule': crontab(hour=7, minute=0),
     },
 }
 
