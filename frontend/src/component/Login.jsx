@@ -3,25 +3,74 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../css/login.css";
 
+const MODE_LOGIN = "login";
+const MODE_SETUP = "setup";
+
 const Login = () => {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const navigate = useNavigate();
+
+  const [mode, setMode] = useState(MODE_LOGIN);
   const [formData, setFormData] = useState({
-    email: "",
+    employee_id: "",
     password: "",
-    name: ""
+    confirm_password: "",
   });
-  const [isSignup, setIsSignup] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Arriving here with ?expired=1 means a request came back 401 and the
+  // session was dropped -- say so, rather than leaving a blank form that
+  // looks like an ordinary sign-out.
+  const [notice, setNotice] = useState(() =>
+    new URLSearchParams(window.location.search).has("expired")
+      ? "Your session has ended. Please sign in again."
+      : ""
+  );
+
+  const isSetup = mode === MODE_SETUP;
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
     setError("");
+  };
+
+  const switchMode = (next) => {
+    setMode(next);
+    setError("");
+    setNotice("");
+    setFormData({ ...formData, password: "", confirm_password: "" });
+  };
+
+  // The API returns field errors, non_field_errors, or a message. Flatten
+  // whichever arrived into one line the operator can act on.
+  const readError = (data) => {
+    if (!data) return "Network error. Please check your connection.";
+    if (typeof data === "string") return data;
+    if (data.non_field_errors?.length) return data.non_field_errors[0];
+    if (data.message) return data.message;
+    for (const key of ["employee_id", "password", "confirm_password", "error"]) {
+      const value = data[key];
+      if (Array.isArray(value) && value.length) return value[0];
+      if (typeof value === "string") return value;
+    }
+    return "Something went wrong. Please try again.";
+  };
+
+  const cacheRecipeNames = async (token) => {
+    // Populates the recipe filter without waiting for the dashboard to load.
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/api/recipe-export-master/`,
+        { headers: { Authorization: `Token ${token}` } }
+      );
+      localStorage.setItem(
+        "recipeNames",
+        JSON.stringify(Object.keys(response.data))
+      );
+    } catch {
+      // Not worth blocking sign-in over.
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -29,47 +78,46 @@ const Login = () => {
     setLoading(true);
     setError("");
 
+    if (isSetup && formData.password !== formData.confirm_password) {
+      setError("The two passwords do not match.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const endpoint = isSignup ? `${API_BASE_URL}/api/auth/signup/` : `${API_BASE_URL}/api/auth/login/`;
-      const payload = isSignup 
-        ? { email: formData.email, password: formData.password, name: formData.name }
-        : { email: formData.email, password: formData.password };
+      const endpoint = isSetup
+        ? `${API_BASE_URL}/api/auth/claim/`
+        : `${API_BASE_URL}/api/auth/login/`;
+      const payload = isSetup
+        ? {
+            employee_id: formData.employee_id,
+            password: formData.password,
+            confirm_password: formData.confirm_password,
+          }
+        : { employee_id: formData.employee_id, password: formData.password };
 
       const response = await axios.post(endpoint, payload);
 
       if (response.data.token) {
         localStorage.setItem("authToken", response.data.token);
         localStorage.setItem("user", JSON.stringify(response.data.user));
-        
-        // Fetch recipe names after successful login
-        try {
-          const recipeResponse = await axios.get(`${API_BASE_URL}/api/recipe-export-master/`, {
-            params: { format: 'json' },
-            headers: { 'Authorization': `Token ${response.data.token}` }
-          });
-          
-          const recipeNames = Object.keys(recipeResponse.data);
-          localStorage.setItem('recipeNames', JSON.stringify(recipeNames));
-          console.log('Recipe names fetched on login:', recipeNames);
-        } catch (recipeErr) {
-          console.error('Failed to fetch recipe names on login:', recipeErr);
-          // Don't block login if recipe fetch fails
-        }
-        
+        await cacheRecipeNames(response.data.token);
         navigate("/");
       }
     } catch (err) {
-      if (err.response?.data) {
-        const errorData = err.response.data;
-        if (errorData.email) {
-          setError(errorData.email[0]);
-        } else if (errorData.message) {
-          setError(errorData.message);
-        } else {
-          setError("Authentication failed. Please try again.");
-        }
-      } else {
-        setError("Network error. Please check your connection.");
+      const data = err.response?.data;
+      const message = readError(data);
+      setError(message);
+
+      // An account that has never been claimed, or one an administrator has
+      // reset, can only move forward by setting a password -- so offer that
+      // instead of leaving the person stuck on a failed sign-in.
+      if (!isSetup && message.toLowerCase().includes("not been set up")) {
+        setMode(MODE_SETUP);
+        setError("");
+        setNotice(
+          "This account needs a password. Choose one to finish setting it up."
+        );
       }
     } finally {
       setLoading(false);
@@ -78,7 +126,6 @@ const Login = () => {
 
   return (
     <div className="login-wrapper">
-      {/* Left Panel - Minimal Professional Branding */}
       <div className="left-panel">
         <div className="brand-section">
           <img
@@ -90,132 +137,140 @@ const Login = () => {
           <p className="brand-tagline">Advancing Mobility Through Innovation</p>
         </div>
 
-        {/* Minimal Tyre Animation
-        <div className="visual-element">
-          <div className="tyre-circle">
-            <div className="tyre-ring"></div>
-            <div className="tyre-center">
-              <span className="tyre-label">4RC</span>
-            </div>
-          </div>
-        </div> */}
-
         <div className="footer-text">
-          <p>© 2025 JK Tyre & Industries Ltd.</p>
+          <p>© 2025 JK Tyre &amp; Industries Ltd.</p>
         </div>
       </div>
 
-      {/* Right Panel - Login Form */}
       <div className="right-panel">
         <div className="login-card">
           <div className="card-header">
             <h2 className="login-title">
-              {isSignup ? "Create Account" : "Welcome Back"}
+              {isSetup ? "Set Your Password" : "Welcome Back"}
             </h2>
             <p className="login-subtitle">
-              {isSignup 
-                ? "Sign up to access the dashboard" 
+              {isSetup
+                ? "First time here, or password reset? Choose a password for your employee ID."
                 : "Login to access Production Monitoring Dashboard"}
             </p>
           </div>
 
-          {/* Error Message - Amazon/Instagram Style ONLY */}
+          {notice && (
+            <div className="error-banner" style={{ background: "#eef5ff", borderColor: "#b6d4fe" }}>
+              <span className="error-text" style={{ color: "#084298" }}>{notice}</span>
+            </div>
+          )}
+
           {error && (
             <div className="error-banner">
               <svg className="error-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
               </svg>
               <span className="error-text">{error}</span>
             </div>
           )}
 
-          {/* Login/Signup Form - ORIGINAL DESIGN */}
           <form onSubmit={handleSubmit} className="login-form">
-            {isSignup && (
+            <div className="form-group">
+              <label className="form-label">Employee ID</label>
+              <input
+                type="text"
+                name="employee_id"
+                placeholder="Enter your employee ID"
+                className="form-input"
+                value={formData.employee_id}
+                onChange={handleChange}
+                autoComplete="username"
+                autoCapitalize="characters"
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                {isSetup ? "New Password" : "Password"}
+              </label>
+              <input
+                type="password"
+                name="password"
+                placeholder={isSetup ? "At least 8 characters" : "Enter your password"}
+                className="form-input"
+                value={formData.password}
+                onChange={handleChange}
+                autoComplete={isSetup ? "new-password" : "current-password"}
+                required
+              />
+            </div>
+
+            {isSetup && (
               <div className="form-group">
-                <label className="form-label">Full Name</label>
+                <label className="form-label">Confirm Password</label>
                 <input
-                  type="text"
-                  name="name"
-                  placeholder="Enter your full name"
+                  type="password"
+                  name="confirm_password"
+                  placeholder="Type it again"
                   className="form-input"
-                  value={formData.name}
+                  value={formData.confirm_password}
                   onChange={handleChange}
+                  autoComplete="new-password"
                   required
                 />
               </div>
             )}
 
-            <div className="form-group">
-              <label className="form-label">Email Address</label>
-              <input
-                type="email"
-                name="email"
-                placeholder="Enter your email"
-                className="form-input"
-                value={formData.email}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <input
-                type="password"
-                name="password"
-                placeholder="Enter your password"
-                className="form-input"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            {!isSignup && (
+            {!isSetup && (
               <div className="form-options">
                 <label className="remember-me">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                   />
                   <span>Remember Me</span>
                 </label>
-                <a href="#" className="forgot-password">
-                  Forgot Password?
-                </a>
+                <button
+                  type="button"
+                  className="toggle-btn"
+                  onClick={() => switchMode(MODE_SETUP)}
+                >
+                  Forgot password?
+                </button>
               </div>
             )}
 
-            <button
-              type="submit"
-              className="submit-btn"
-              disabled={loading}
-            >
+            <button type="submit" className="submit-btn" disabled={loading}>
               {loading ? (
                 <span className="loading-spinner"></span>
+              ) : isSetup ? (
+                "Set Password & Continue"
               ) : (
-                isSignup ? "Sign Up" : "Login"
+                "Login"
               )}
             </button>
           </form>
 
           <div className="toggle-auth">
-            <p>
-              {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
-              <button 
-                type="button"
-                onClick={() => {
-                  setIsSignup(!isSignup);
-                  setError("");
-                  setFormData({ email: "", password: "", name: "" });
-                }}
-                className="toggle-btn"
-              >
-                {isSignup ? "Login" : "Sign Up"}
-              </button>
-            </p>
+            {isSetup ? (
+              <p>
+                Already have a password?{" "}
+                <button
+                  type="button"
+                  onClick={() => switchMode(MODE_LOGIN)}
+                  className="toggle-btn"
+                >
+                  Back to login
+                </button>
+              </p>
+            ) : (
+              <p className="login-subtitle" style={{ margin: 0 }}>
+                Accounts are created by your manager. If you have forgotten your
+                password, ask the administrator to reset it.
+              </p>
+            )}
           </div>
         </div>
       </div>
