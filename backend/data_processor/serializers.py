@@ -150,7 +150,8 @@ class ChangeoverCorrectionRequestSerializer(serializers.ModelSerializer):
     Serializer to display correction requests to managers.
     """
     changeover_id = serializers.PrimaryKeyRelatedField(read_only=True, source='changeover.id')
-    requested_by_email = serializers.EmailField(read_only=True, source='requested_by.email')
+    # Who asked, as a manager would recognise them: '10433 - S Raman'.
+    requested_by_label = serializers.SerializerMethodField()
     current_recipe = serializers.CharField(read_only=True, source='changeover.current_recipe')
     
     old_category = serializers.CharField(read_only=True, source='old_overshoot.category', default=None)
@@ -158,10 +159,16 @@ class ChangeoverCorrectionRequestSerializer(serializers.ModelSerializer):
     new_category = serializers.CharField(read_only=True, source='new_overshoot.category', default=None)
     new_reason = serializers.CharField(read_only=True, source='new_overshoot.reason', default=None)
     
+    def get_requested_by_label(self, obj):
+        user = obj.requested_by
+        if user is None:
+            return None
+        return f'{user.employee_id} - {user.name}'.strip(' -')
+
     class Meta:
         model = ChangeoverCorrectionRequest
         fields = [
-            'id', 'changeover_id', 'requested_by_email', 'current_recipe',
+            'id', 'changeover_id', 'requested_by_label', 'current_recipe',
             'old_category', 'old_reason', 
             'new_category', 'new_reason', 
             'status', 'created_at'

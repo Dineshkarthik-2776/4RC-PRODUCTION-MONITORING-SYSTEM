@@ -11,7 +11,11 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework.parsers import MultiPartParser, FormParser ,JSONParser
 from rest_framework.permissions import IsAuthenticated
-from user_authentication.permissions import IsManagerUser
+from user_authentication.permissions import (
+    CanRecordOvershootReason,
+    IsManager,
+    IsManagerOrReadOnly,
+)
 from .models import RecipeMaster, ChangeoverSummary, StandardTimeMaster, RawLineData
 from .tasks import process_changeover_data
 from .serializers import (
@@ -44,7 +48,7 @@ class StandardTimeListCreateAPIView(generics.ListCreateAPIView):
     """
     queryset = StandardTimeMaster.objects.all()
     serializer_class = StandardTimeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def post(self, request, *args, **kwargs):
         data = request.data
@@ -73,7 +77,7 @@ class StandardTimeDeleteAPIView(generics.DestroyAPIView):
     """
     queryset = StandardTimeMaster.objects.all()
     serializer_class = StandardTimeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
     
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -88,7 +92,7 @@ from .models import ChangeoverRule
 from .serializers import ChangeoverRuleSerializer
 
 class StandardTimeRuleAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def get(self, request, pk, *args, **kwargs):
         try:
@@ -114,7 +118,7 @@ class StandardTimeRuleAPIView(APIView):
         return Response(serializer.errors, status=400)
         
 class StandardTimeRuleDeleteAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def delete(self, request, pk, rule_id, *args, **kwargs):
         try:
@@ -130,8 +134,9 @@ class StandardTimeRuleDeleteAPIView(APIView):
 # 📁 Recipe Upload API
 # ============================================================
 
-def _normalize_recipe_code(value):
-    return str(value or '').strip().replace(' ', '').upper()
+# Shared with the pipeline -- see data_processor/recipe_codes.py.
+from .recipe_codes import normalize_recipe_code as _normalize_recipe_code
+from .recipe_codes import find_master_by_code, upsert_master_recipe
 
 
 def _is_missing_recipe_type(recipe_type):
@@ -188,7 +193,7 @@ class RecipeMasterAPIView(generics.ListCreateAPIView):
     """
     queryset = RecipeMaster.objects.all()
     serializer_class = RecipeMasterSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManagerOrReadOnly]
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -230,7 +235,7 @@ class RecipeMasterUpdateAPIView(generics.UpdateAPIView):
     """
     queryset = RecipeMaster.objects.all()
     serializer_class = RecipeMasterSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -257,7 +262,7 @@ class RecipeUploadAPIView(APIView):
     1) multipart file field `excel_file` (csv/xls/xlsx)
     2) JSON body with `data: [{recipe_code, recipe_type, target_speed, sap_code?}, ...]`
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def post(self, request, *args, **kwargs):
@@ -333,10 +338,13 @@ class RecipeUploadAPIView(APIView):
                 if sap_code:
                     defaults['sap_code'] = sap_code
 
-                obj, created = RecipeMaster.objects.update_or_create(
-                    recipe_code=recipe_code,
-                    defaults=defaults
-                )
+                # Match on the normalised code so re-uploading a sheet that
+                # spells a recipe differently updates the existing master row
+                # rather than creating a duplicate.
+                obj, created = upsert_master_recipe(recipe_code, defaults=defaults)
+                if obj is None:
+                    failed_rows.append({"row": idx, "error": "recipe_code is empty after normalisation."})
+                    continue
 
                 if created:
                     created_count += 1
@@ -389,14 +397,19 @@ class RecipeUploadAPIView(APIView):
 
 class RecipeExportAPIView(APIView):
     """
-    API endpoint to export all RecipeMaster data as JSON, CSV, or Excel.
+    API endpoint returning the full RecipeMaster as JSON.
+
+    The CSV and Excel branches that used to live here were unreachable:
+    `format` is a reserved DRF content-negotiation parameter, so
+    ?format=csv and ?format=excel returned HTTP 404 ("Not found.") before
+    this view ever ran. Only JSON was ever served. The spreadsheet exports
+    the UI actually offers are /api/changeover-export/ and
+    /api/kepware-logs-export/, which take no `format` parameter.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         try:
-            export_format = request.query_params.get('format', 'json').lower()
-
             recipes = RecipeMaster.objects.all()
 
             if not recipes.exists():
@@ -405,39 +418,15 @@ class RecipeExportAPIView(APIView):
                     status=status.HTTP_200_OK
                 )
 
-            # JSON Format
-            if export_format == 'json':
-                data = {
-                    r.recipe_code: {
-                        "sap_code": r.sap_code,
-                        "type": r.recipe_type,
-                        "target_speed": r.target_speed
-                    }
-                    for r in recipes
+            data = {
+                r.recipe_code: {
+                    "sap_code": r.sap_code,
+                    "type": r.recipe_type,
+                    "target_speed": r.target_speed
                 }
-                return Response(data, status=status.HTTP_200_OK)
-
-            # CSV Format
-            if export_format == 'csv':
-                df = pd.DataFrame(list(recipes.values('recipe_code', 'sap_code', 'recipe_type', 'target_speed')))
-                response = HttpResponse(content_type='text/csv')
-                response['Content-Disposition'] = 'attachment; filename="RecipeMaster_Export.csv"'
-                df.to_csv(path_or_buf=response, index=False)
-                return response
-
-            # Excel Format
-            df = pd.DataFrame(list(recipes.values()))
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df.to_excel(writer, index=False, sheet_name='Recipes')
-            buffer.seek(0)
-
-            response = HttpResponse(
-                buffer,
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-            response['Content-Disposition'] = 'attachment; filename="RecipeMaster_Export.xlsx"'
-            return response
+                for r in recipes
+            }
+            return Response(data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response(
@@ -458,7 +447,7 @@ class MissingRecipeWarningAPIView(APIView):
     API endpoint to fetch distinct recipe codes that caused data to be skipped
     due to missing target speeds in the last 3 days.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def get(self, request, *args, **kwargs):
         from .models import RawLineData
@@ -511,7 +500,10 @@ class ChangeoverStatsAPIView(APIView):
 
         # 2️⃣ Default: show all available shifts for calendar yesterday and today
         if not from_date_str and not to_date_str:
-            now_local = timezone.localtime()
+            # USE_TZ is False, so timezone.now() returns a naive datetime and
+            # timezone.localtime() rejects it. datetime.now() is the correct
+            # call for this project -- see the note in reports/views.py.
+            now_local = datetime.datetime.now()
             from_date_str = (now_local.date() - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
             to_date_str = now_local.date().strftime('%Y-%m-%d')
             logger.info("Using default date window: %s to %s", from_date_str, to_date_str)
@@ -889,7 +881,7 @@ class ChangeoverUpdateAPIView(generics.UpdateAPIView):
     """
     queryset = ChangeoverSummary.objects.all()
     serializer_class = ChangeoverUpdateSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanRecordOvershootReason]
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -908,8 +900,11 @@ class ChangeoverUpdateAPIView(generics.UpdateAPIView):
             )
 
         # 2. Check Role
+        # Managers write directly whatever the elapsed time. A shift incharge
+        # is bound by the 5-hour window below. Operators never reach here --
+        # CanRecordOvershootReason refuses them.
         user = request.user
-        is_manager = (user.role == 'manager' or user.role == 'admin')
+        is_manager = user.is_manager
 
         # 3. Manager Logic
         if is_manager:
@@ -978,7 +973,7 @@ class CorrectionRequestListAPIView(generics.ListAPIView):
     List all PENDING correction requests.
     Managers only.
     """
-    permission_classes = [IsManagerUser]
+    permission_classes = [IsManager]
     serializer_class = ChangeoverCorrectionRequestSerializer
 
     def get_queryset(self):
@@ -990,7 +985,7 @@ class CorrectionRequestActionAPIView(APIView):
     Approve or Reject a correction request.
     Managers only.
     """
-    permission_classes = [IsManagerUser]
+    permission_classes = [IsManager]
 
     def post(self, request, pk, *args, **kwargs):
         try:
