@@ -72,8 +72,28 @@ def to_local_ts(val):
     return ts
 
 
-def _normalize_recipe_code(value):
-    return str(value or '').strip().replace(' ', '').upper()
+# Matching rules live in data_processor/recipe_codes.py so the pipeline, the
+# views and the management commands cannot drift apart. Aliased here because
+# this name is used throughout the module.
+from .recipe_codes import normalize_recipe_code as _normalize_recipe_code
+from .recipe_codes import upsert_master_recipe
+
+
+def _master_spelling(value, display_map):
+    """Return the recipe code as RecipeMaster spells it.
+
+    Codes are normalised (spaces stripped, upper-cased) for MATCHING, because
+    the same recipe arrives from the sensors in several spellings. But the
+    normalised form is not what operators recognise, and it will not compare
+    equal to the dropdown values the UI builds from RecipeMaster.
+
+    So the summary stores the master's spelling. Recipes with no master row
+    keep their normalised code, which is the only form we have for them.
+    """
+    normalized = _normalize_recipe_code(value)
+    if not normalized:
+        return value
+    return display_map.get(normalized, value)
 
 
 LINE_PASS_CODE = _normalize_recipe_code('LINE PASS')
@@ -267,6 +287,37 @@ def calculate_time_loss(batch, roll2, batch_first):
 
 
 # ======================================================================
+# == SHIFT & PRODUCTION DATE ATTRIBUTION
+# ======================================================================
+
+def calculate_shift_and_date(dt):
+    if pd.isna(dt):
+        return None, None
+    
+    if isinstance(dt, pd.Timestamp):
+        dt = dt.to_pydatetime()
+    # Shift classification is based on the stored wall-clock time.
+    # Avoid re-interpreting an already-stored timestamp through UTC/localtime,
+    # otherwise a 06:17 record can be pushed into the wrong shift bucket.
+    local_dt = dt.replace(tzinfo=None) if getattr(dt, 'tzinfo', None) is not None else dt
+    time_hour = local_dt.hour
+    
+    if 7 <= time_hour < 15:
+        shift = 'A'
+        prod_date = local_dt.date()
+    elif 15 <= time_hour < 23:
+        shift = 'B'
+        prod_date = local_dt.date()
+    else:
+        shift = 'C'
+        if 0 <= time_hour < 7:
+            prod_date = (local_dt - datetime.timedelta(days=1)).date()
+        else:
+            prod_date = local_dt.date()
+    return shift, prod_date
+
+
+# ======================================================================
 # == CELERY TASK: process_changeover_data
 # ======================================================================
 
@@ -282,6 +333,8 @@ def process_changeover_data(dev_mode=False):
         recipe_masters = RecipeMaster.objects.all()
         target_map = {_normalize_recipe_code(r.recipe_code): r.target_speed for r in recipe_masters}
         type_map = {_normalize_recipe_code(r.recipe_code): r.recipe_type for r in recipe_masters}
+        # normalised code -> the spelling RecipeMaster holds, for display
+        display_map = {_normalize_recipe_code(r.recipe_code): r.recipe_code for r in recipe_masters}
     except Exception as e:
         print(f"CRITICAL ERROR: Could not fetch RecipeMaster: {e}")
         return "Task failed: Could not load recipe data."
@@ -626,33 +679,6 @@ def process_changeover_data(dev_mode=False):
     # Standard time
     batch_first_nonna['Standard Time'] = batch_first_nonna['Changeover'].map(standard_time_mapping)
 
-    # Calculate shift and production date
-    def calculate_shift_and_date(dt):
-        if pd.isna(dt):
-            return None, None
-        
-        if isinstance(dt, pd.Timestamp):
-            dt = dt.to_pydatetime()
-        # Shift classification is based on the stored wall-clock time.
-        # Avoid re-interpreting an already-stored timestamp through UTC/localtime,
-        # otherwise a 06:17 record can be pushed into the wrong shift bucket.
-        local_dt = dt.replace(tzinfo=None) if getattr(dt, 'tzinfo', None) is not None else dt
-        time_hour = local_dt.hour
-        
-        if 7 <= time_hour < 15:
-            shift = 'A'
-            prod_date = local_dt.date()
-        elif 15 <= time_hour < 23:
-            shift = 'B'
-            prod_date = local_dt.date()
-        else:
-            shift = 'C'
-            if 0 <= time_hour < 7:
-                prod_date = (local_dt - datetime.timedelta(days=1)).date()
-            else:
-                prod_date = local_dt.date()
-        return shift, prod_date
-
     batch_first_nonna['Shift'] = None
     batch_first_nonna['Production Date'] = None
     for idx, row in batch_first_nonna.iterrows():
@@ -698,8 +724,10 @@ def process_changeover_data(dev_mode=False):
                 
                 # Update calculated fields regardless of whether it's new or existing
                 summary.recipe_change_time = clean_value(row['RECIPE CHANGE TIME'])
-                summary.current_recipe = clean_value(row['CURRENT_RECIPE'])
-                summary.previous_recipe = clean_value(row['PREVIOUS_RECIPE'])
+                summary.current_recipe = _master_spelling(
+                    clean_value(row['CURRENT_RECIPE']), display_map)
+                summary.previous_recipe = _master_spelling(
+                    clean_value(row['PREVIOUS_RECIPE']), display_map)
                 summary.ramp_down_timestamp = clean_value(row['RAMP_DOWN'])
                 summary.setup_start_timestamp = clean_value(row['SETUP_START'])
                 summary.ramp_up_timestamp = clean_value(row['RAMP_UP'])
@@ -838,18 +866,24 @@ def sync_recipe_master_from_bom():
             if not recipe_code:
                 continue
                 
-            recipe_code = str(recipe_code).strip().upper()
+            recipe_code = str(recipe_code).strip()
             sap_code = str(sap_code).strip() if sap_code else None
 
-            # Get or create in RecipeMaster
-            obj, created = RecipeMaster.objects.get_or_create(
-                recipe_code=recipe_code,
+            # Match on the normalised code so a BOM row spelled 'CP034HI' does
+            # not create a second master row beside an existing 'CP 034 HI'.
+            # A new row keeps the ERP's spelling, which becomes the spelling
+            # shown everywhere downstream.
+            obj, created = upsert_master_recipe(
+                recipe_code,
                 defaults={
                     'sap_code': sap_code,
                     'target_speed': 0.0, # Default, must be updated via API later
                     'recipe_type': 'unknown' # Default, must be updated via API later
-                }
+                },
+                update_existing=False,
             )
+            if obj is None:
+                continue
 
             if created:
                 created_count += 1
