@@ -4,21 +4,27 @@ Every other account is created from inside the app: managers add operators
 and shift incharges, and the administrator adds managers. This command exists
 only to create the first account, so there is somebody to log in as.
 
-    python manage.py seed_admin_user
-    python manage.py seed_admin_user --employee-id admin_jk --password <secret>
+    ADMIN_SEED_PASSWORD=<secret> python manage.py seed_admin_user
+    python manage.py seed_admin_user --password <secret>
+
+The password must be supplied, by --password or by ADMIN_SEED_PASSWORD.
+There is deliberately no default: this repository is public, and a
+built-in administrator password is one anybody can read.
 
 Re-running is safe. If the account already exists it is left alone unless
 --reset-password is passed, so a deploy script can call this every time.
 """
 
-from django.core.management.base import BaseCommand
+import os
+
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from user_authentication.models import User, normalize_employee_id
 
 DEFAULT_EMPLOYEE_ID = 'admin_jk'
-DEFAULT_PASSWORD = 'jktyres'
 DEFAULT_NAME = 'JK Tyre Administrator'
+PASSWORD_ENV_VAR = 'ADMIN_SEED_PASSWORD'
 
 
 class Command(BaseCommand):
@@ -26,7 +32,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--employee-id', default=DEFAULT_EMPLOYEE_ID)
-        parser.add_argument('--password', default=DEFAULT_PASSWORD)
+        parser.add_argument(
+            '--password',
+            help='Falls back to the ADMIN_SEED_PASSWORD environment variable.')
         parser.add_argument('--name', default=DEFAULT_NAME)
         parser.add_argument(
             '--reset-password', action='store_true',
@@ -34,7 +42,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         employee_id = normalize_employee_id(options['employee_id'])
-        password = options['password']
+        password = options['password'] or os.environ.get(PASSWORD_ENV_VAR)
+        if not password:
+            raise CommandError(
+                'No password given. Pass --password, or set '
+                f'{PASSWORD_ENV_VAR}. There is no default on purpose -- a '
+                'built-in administrator password is one anybody with the '
+                'source can read.')
 
         with transaction.atomic():
             user = User.objects.filter(employee_id=employee_id).first()
@@ -62,7 +76,5 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f'Created administrator {employee_id}.'))
-        if password == DEFAULT_PASSWORD:
-            self.stdout.write(self.style.WARNING(
-                'This account uses the default password. Change it after the '
-                'first sign-in -- anyone with the source can read it.'))
+        self.stdout.write(
+            'Sign in with it once and change it from the Users panel.')

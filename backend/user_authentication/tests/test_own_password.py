@@ -17,7 +17,9 @@ fast_passwords = override_settings(
 
 VERIFY_URL = '/api/auth/me/verify-password/'
 CHANGE_URL = '/api/auth/me/change-password/'
-CURRENT = 'jktyres'
+# A throwaway fixture password, not a real one. The seed command
+# has no built-in default any more -- it refuses to invent one.
+CURRENT = 'bootstrap-pass-9'
 NEW = 'Plant2026!x'
 
 
@@ -116,7 +118,7 @@ class ChangeStepTests(OwnPasswordBase):
     def test_reusing_the_current_password_is_refused(self):
         # Needs a current password that would otherwise pass validation,
         # so the "must be different" rule is what rejects it rather than the
-        # length check. The seeded 'jktyres' is only 7 characters.
+        # length check, which a 7-character password trips first.
         self.admin.set_password('Compliant2026!x')
         self.admin.save()
 
@@ -150,20 +152,28 @@ class ChangeStepTests(OwnPasswordBase):
 
 
 class SeededAdminPasswordTests(OwnPasswordBase):
-    """The seeded default is weaker than what we demand of everybody else.
+    """create_superuser does not run AUTH_PASSWORD_VALIDATORS.
 
-    seed_admin_user sets 'jktyres' through create_superuser, which does not
-    run AUTH_PASSWORD_VALIDATORS -- so the bootstrap account starts with a
-    7-character password that no employee would be allowed to choose. That is
-    a deliberate trade for bootstrapping, and this test records it so the gap
-    is visible rather than forgotten.
+    So whatever password seed_admin_user is given goes in unchecked,
+    even one no employee would be allowed to choose. The command no
+    longer carries a default of its own -- it refuses to invent one --
+    but a deployer can still pass something weak, and this records that
+    the gap is in create_superuser rather than in the command.
     """
 
-    def test_the_seeded_password_would_fail_validation(self):
+    def test_a_weak_bootstrap_password_is_not_validated(self):
         from django.contrib.auth.password_validation import validate_password
         from django.core.exceptions import ValidationError
+
+        # Seven characters: shorter than the 8 the validators demand.
+        weak = 'seed123'
         with self.assertRaises(ValidationError):
-            validate_password('jktyres', self.admin)
+            validate_password(weak, self.admin)
+
+        # And yet create_superuser accepts it without complaint.
+        bootstrapped = User.objects.create_superuser(
+            employee_id='BOOT1', password=weak, name='Bootstrap')
+        self.assertTrue(bootstrapped.check_password(weak))
 
     def test_a_deliberate_change_is_held_to_the_rules(self):
         # Whatever the account starts with, choosing a new password goes

@@ -10,9 +10,12 @@ usable password, and the person chooses their own at first sign-in. A
 password reset puts the account back into exactly that state.
 """
 
+import os
 from io import StringIO
+from unittest import mock
 
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -33,10 +36,21 @@ USERS_URL = '/api/auth/users/'
 
 @fast_passwords
 class SeedAdminCommandTests(APITestCase):
+    """The one bootstrap account.
 
-    def seed(self, *args):
+    The password has no default: this repository is public, and a
+    built-in administrator password is one anybody can read. It comes
+    from --password or the ADMIN_SEED_PASSWORD environment variable.
+    """
+
+    SEED_PASSWORD = 'bootstrap-pass-9'
+
+    def seed(self, *args, password=None):
         out = StringIO()
-        call_command('seed_admin_user', *args, stdout=out, stderr=out)
+        if password is None:
+            password = self.SEED_PASSWORD
+        call_command('seed_admin_user', '--password', password,
+                     *args, stdout=out, stderr=out)
         return out.getvalue()
 
     def test_creates_the_bootstrap_administrator(self):
@@ -52,11 +66,27 @@ class SeedAdminCommandTests(APITestCase):
         self.seed()
         response = APIClient().post(
             '/api/auth/login/',
-            {'employee_id': 'admin_jk', 'password': 'jktyres'}, format='json')
+            {'employee_id': 'admin_jk', 'password': self.SEED_PASSWORD},
+            format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_warns_about_the_default_password(self):
-        self.assertIn('default password', self.seed())
+    def test_it_refuses_to_invent_a_password(self):
+        # No default, on purpose. A built-in administrator password on a
+        # public repository is a published credential.
+        out = StringIO()
+        with self.assertRaises(CommandError) as caught:
+            call_command('seed_admin_user', stdout=out, stderr=out)
+        self.assertIn('No password given', str(caught.exception))
+        self.assertFalse(User.objects.exists())
+
+    def test_it_reads_the_password_from_the_environment(self):
+        with mock.patch.dict(
+                os.environ, {'ADMIN_SEED_PASSWORD': 'from-the-env-1'}):
+            out = StringIO()
+            call_command('seed_admin_user', stdout=out, stderr=out)
+
+        admin = User.objects.get(employee_id='ADMIN_JK')
+        self.assertTrue(admin.check_password('from-the-env-1'))
 
     def test_rerunning_is_a_no_op(self):
         self.seed()
@@ -73,7 +103,7 @@ class SeedAdminCommandTests(APITestCase):
         self.seed('--reset-password')
 
         admin.refresh_from_db()
-        self.assertTrue(admin.check_password('jktyres'))
+        self.assertTrue(admin.check_password(self.SEED_PASSWORD))
 
 
 @fast_passwords
@@ -81,7 +111,8 @@ class UserAdministrationBase(APITestCase):
 
     def setUp(self):
         self.admin = User.objects.create_superuser(
-            employee_id='ADMIN_JK', password='jktyres', name='Administrator')
+            employee_id='ADMIN_JK', password='admin-pass-77',
+            name='Administrator')
         self.manager = User.objects.create_user(
             employee_id='20003', password='x', name='P Mehta',
             role=User.Role.MANAGER)
