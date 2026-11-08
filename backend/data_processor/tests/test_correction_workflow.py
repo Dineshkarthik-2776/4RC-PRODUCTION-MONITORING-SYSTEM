@@ -347,12 +347,20 @@ class ApprovalWorkflowTests(CorrectionTestBase):
         response = self.client.get('/api/correction-requests/')
         self.assertEqual(len(response.data), 0)
 
-    def test_a_shift_incharge_cannot_list_requests(self):
+    def test_a_shift_incharge_can_list_requests(self):
+        # Approving is a shift decision, not only a management one: the
+        # person running the shift knows whether the claim is true.
         self.client.force_authenticate(user=self.shift_incharge)
         response = self.client.get('/api/correction-requests/')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_a_shift_incharge_cannot_approve(self):
+    def test_a_shift_incharge_can_approve(self):
         self.client.force_authenticate(user=self.shift_incharge)
+        response = self._act('approve')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_an_operator_still_cannot_approve(self):
+        # They raise these requests; somebody above them decides.
+        self.client.force_authenticate(user=self.operator)
         response = self._act('approve')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

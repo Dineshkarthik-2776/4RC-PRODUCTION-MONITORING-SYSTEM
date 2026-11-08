@@ -347,3 +347,79 @@ class ReportsSummaryTests(ApiTestBase):
             HTTP_ACCEPT='application/pdf')
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertTrue(response.getvalue().startswith(b'%PDF'))
+
+
+class OvershootReasonRoundTripTests(RealDatabaseGuard, APITestCase):
+    """A saved overshoot reason has to come back readable.
+
+    `overshoot` is write_only, so the id a client PATCHes in was never
+    returned. The dashboard's reason dropdown had nothing to select and
+    fell back to "Select Reason" every time the panel reopened, even
+    though the reason was stored -- and the category came back correctly
+    from its own read-only field, which made it look as though the reason
+    alone had failed to save.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.manager = get_user_model().objects.create_user(
+            employee_id='MGR1', password='line-pass-99', name='Manager',
+            role=get_user_model().Role.MANAGER)
+        self.reason = OvershootReasons.objects.create(
+            category='Method', reason='Trial run repeated')
+        # A reason can only be recorded where there was an overshoot, so
+        # the actual time has to exceed the standard.
+        self.changeover = ChangeoverSummary.objects.create(
+            batch=1.0,
+            recipe_change_time=datetime.datetime(2026, 11, 8, 8, 0),
+            setup_start_timestamp=datetime.datetime(2026, 11, 8, 8, 0),
+            setup_complete_timestamp=datetime.datetime(2026, 11, 8, 9, 0),
+            setup_time_actual=60.0, standard_time=45,
+            shift='A', production_date=datetime.date(2026, 11, 8))
+
+        self.client = APIClient()
+        self.client.force_authenticate(self.manager)
+
+    def _save_reason(self):
+        return self.client.patch(
+            f'/api/changeover/update/{self.changeover.pk}/',
+            {'overshoot': self.reason.pk}, format='json')
+
+    def _read_back(self):
+        """The changeover as the dashboard receives it.
+
+        changeover-stats groups rows by changeover type: table_data is a
+        list of groups, each with a 'details' list of the real rows.
+        """
+        response = self.client.get(
+            '/api/changeover-stats/?start_date=2026-11-08&end_date=2026-11-08')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for group in response.data['table_data']:
+            for row in group['details']:
+                if row['id'] == self.changeover.pk:
+                    return row
+        return None
+
+    def test_the_reason_is_saved(self):
+        self.assertEqual(self._save_reason().status_code, 200)
+        self.changeover.refresh_from_db()
+        self.assertEqual(self.changeover.overshoot, self.reason)
+
+    def test_the_saved_reason_id_comes_back(self):
+        # The dropdown needs the id, not just the label, to preselect.
+        self._save_reason()
+        row = self._read_back()
+
+        self.assertIsNotNone(row, 'changeover missing from the stats payload')
+        self.assertEqual(row['overshoot_id'], self.reason.pk)
+
+    def test_the_label_fields_still_come_back(self):
+        self._save_reason()
+        row = self._read_back()
+
+        self.assertEqual(row['overshoot_category'], 'Method')
+        self.assertEqual(row['overshoot_reason'], 'Trial run repeated')
+
+    def test_an_unset_reason_reads_as_null(self):
+        row = self._read_back()
+        self.assertIsNone(row['overshoot_id'])
