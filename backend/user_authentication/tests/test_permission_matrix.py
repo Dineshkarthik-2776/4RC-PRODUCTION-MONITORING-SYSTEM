@@ -170,10 +170,12 @@ class PermissionMatrixTests(UnmanagedTableMixin, APITestCase):
         self.sweep('get', '/api/missing-recipes-warning/',
                    FORBIDDEN, FORBIDDEN, ALLOWED)
 
-    def test_correction_request_list_is_manager_only(self):
+    def test_correction_request_list_is_for_approvers(self):
+        # Shift incharges approve too: they run the shift the claim is
+        # about. Operators raise requests, they do not decide them.
         self.sweep('get', '/api/correction-requests/',
-                   FORBIDDEN, FORBIDDEN, ALLOWED)
+                   FORBIDDEN, ALLOWED, ALLOWED)
 
-    def test_correction_request_action_is_manager_only(self):
+    def test_correction_request_action_is_for_approvers(self):
         self.sweep('post', '/api/correction-requests/1/action/',
-                   FORBIDDEN, FORBIDDEN, ALLOWED, payload={'action': 'approve'})
+                   FORBIDDEN, ALLOWED, ALLOWED, payload={'action': 'approve'})

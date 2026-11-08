@@ -91,3 +91,47 @@ class CanRecordOvershootReason(BasePermission):
 
 # Kept under their previous names so existing imports keep working.
 IsManagerUser = IsManager
+
+
+class CanRecordSetupEvent(BasePermission):
+    """Anybody on the floor may record what happened during a setup.
+
+    Operators are read-only everywhere else, but not here. They are the
+    people standing at the machine when the compound runs out, and an
+    interruption nobody can record is an interruption that silently
+    inflates their own setup time. Shift incharges and managers can record
+    one too, for the terminal nobody was signed in to.
+    """
+
+    message = 'You must be signed in to record a setup event.'
+
+    def has_permission(self, request, view):
+        from user_authentication.models import User
+        return _role_of(request) in (
+            User.Role.OPERATOR,
+            User.Role.SHIFT_INCHARGE,
+            User.Role.MANAGER,
+        )
+
+
+class CanApproveRequests(BasePermission):
+    """Shift incharges and managers: the people who sign things off.
+
+    Covers both approval queues -- correction requests against an
+    overshoot reason, and recorded setup interruptions. They are the same
+    kind of decision ("is this claim about what happened on the line
+    true?") made by the same people, so they share one rule rather than
+    drifting apart.
+
+    Operators are refused. They raise these requests; somebody above them
+    on the shift decides.
+    """
+
+    message = 'Only shift incharges and managers can approve requests.'
+
+    def has_permission(self, request, view):
+        from user_authentication.models import User
+        return _role_of(request) in (
+            User.Role.MANAGER,
+            User.Role.SHIFT_INCHARGE,
+        )

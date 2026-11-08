@@ -5,6 +5,7 @@ from .views import (
     ClaimAccountView,
     CurrentUserView,
     LoginView,
+    LogoutView,
     UserDetailView,
     UserListCreateView,
     UserResetPasswordView,
@@ -13,6 +14,7 @@ from .views import (
 
 urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
+    path('logout/', LogoutView.as_view(), name='logout'),
     path('claim/', ClaimAccountView.as_view(), name='claim-account'),
     path('me/', CurrentUserView.as_view(), name='current-user'),
     path('me/verify-password/', VerifyOwnPasswordView.as_view(),

@@ -9,6 +9,7 @@ from rest_framework import generics
 
 from .models import User
 from .permissions import IsAdmin, IsManager
+from .shift_session import duty_payload, start_duty, stop_duty
 from .serializers import (
     ChangeOwnPasswordSerializer,
     ClaimAccountSerializer,
@@ -34,11 +35,18 @@ class LoginView(APIView):
         user = serializer.validated_data['user']
         token, _ = Token.objects.get_or_create(user=user)
         update_last_login(None, user)
+
+        # An operator signing in is an operator standing at the line, so
+        # this is also the record of who was on duty. Other roles get no
+        # duty session -- see data_processor.setup_capture.
+        session = start_duty(user)
+
         return Response(
             {
                 'message': 'Login successful',
                 'token': token.key,
                 'user': UserSummarySerializer(user).data,
+                'duty': duty_payload(user, session),
             },
             status=status.HTTP_200_OK,
         )
@@ -61,23 +69,51 @@ class ClaimAccountView(APIView):
         user = serializer.save()
         token, _ = Token.objects.get_or_create(user=user)
         update_last_login(None, user)
+        session = start_duty(user)
         return Response(
             {
                 'message': 'Account activated.',
                 'token': token.key,
                 'user': UserSummarySerializer(user).data,
+                'duty': duty_payload(user, session),
             },
             status=status.HTTP_201_CREATED,
         )
 
 
 class CurrentUserView(APIView):
-    """Who am I -- lets the client refresh role and name without re-login."""
+    """Who am I -- lets the client refresh role and name without re-login.
+
+    Also reports the duty session and when the shift ends, which is what
+    the browser counts down to before signing an operator out.
+    """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UserSummarySerializer(request.user).data)
+        data = UserSummarySerializer(request.user).data
+        data['duty'] = duty_payload(request.user)
+        return Response(data)
+
+
+class LogoutView(APIView):
+    """Sign out: close the duty session and destroy the token.
+
+    There was no way to sign out before -- the client simply dropped the
+    token from localStorage and the server-side token lived on forever.
+    That is now a correctness problem as well as a security one, because
+    an operator's duty session has to be closed when they leave the line.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        closed = stop_duty(request.user)
+        Token.objects.filter(user=request.user).delete()
+        return Response(
+            {'message': 'Signed out.', 'duty_sessions_closed': closed},
+            status=status.HTTP_200_OK,
+        )
 
 
 # ============================================================
