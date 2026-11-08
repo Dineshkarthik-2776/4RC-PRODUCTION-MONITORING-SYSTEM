@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useApiData } from "../context/ApiContext";
 import { useNotification } from "../context/NotificationContext";
 import axios from "axios";
+import ChangeoverSetupPanel from "./ChangeoverSetupPanel";
 import "../css/SetupDetails.css";
 
 const SetupDetails = ({ viewType = "details" }) => {
@@ -447,7 +448,7 @@ const SetupDetails = ({ viewType = "details" }) => {
                         <td className="sd-detail-td">
                           <select
                             className={`sd-select ${hasReason ? 'sd-select-filled' : ''}`}
-                            value={reasons[detail.id] !== undefined ? reasons[detail.id] : (detail.overshoot || "")}
+                            value={reasons[detail.id] !== undefined ? reasons[detail.id] : (detail.overshoot_id || "")}
                             onChange={(e) => handleReasonChange(detail.id, e.target.value)}
                             disabled={!displayCategory}
                           >
@@ -464,7 +465,7 @@ const SetupDetails = ({ viewType = "details" }) => {
                           <button
                             onClick={() => handleReasonSubmit(
                               detail.id, 
-                              detail.overshoot
+                              detail.overshoot_id
                             )}
                             className="sd-btn-save"
                             disabled={saving[detail.id]}
@@ -529,7 +530,8 @@ const SetupDetails = ({ viewType = "details" }) => {
                   : (detail.overshoot_category || "None");
 
                 return (
-                  <div className="sd-single-layout">
+                  <>
+                    <section className="sd-page">
                     <div className="sd-single-grid">
                       <div className="sd-single-item"><span className="sd-single-label">Previous Recipe</span><span className="sd-single-value">{renderValueOrNA(detail.from_recipe)}</span></div>
                       <div className="sd-single-item"><span className="sd-single-label">Current Recipe</span><span className="sd-single-value">{renderValueOrNA(detail.current_recipe)}</span></div>
@@ -570,7 +572,7 @@ const SetupDetails = ({ viewType = "details" }) => {
                         <label className="sd-single-label">Reason</label>
                         <select
                           className={`sd-select sd-single-select ${hasReason ? "sd-select-filled" : ""}`}
-                          value={reasons[detail.id] !== undefined ? reasons[detail.id] : (detail.overshoot || "")}
+                          value={reasons[detail.id] !== undefined ? reasons[detail.id] : (detail.overshoot_id || "")}
                           onChange={(e) => handleReasonChange(detail.id, e.target.value)}
                           disabled={!displayCategory}
                         >
@@ -589,7 +591,7 @@ const SetupDetails = ({ viewType = "details" }) => {
                           type="button"
                           onClick={() => handleReasonSubmit(
                             detail.id,
-                            detail.overshoot
+                            detail.overshoot_id
                           )}
                           className="sd-btn-save sd-btn-save-primary"
                           disabled={saving[detail.id]}
@@ -603,7 +605,24 @@ const SetupDetails = ({ viewType = "details" }) => {
                         </div>
                       </div>
                     </div>
-                  </div>
+
+                    <p className="sd-page-hint">
+                      Scroll for setup time by operator
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round"
+                              strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
+                    </p>
+                    </section>
+
+                    {/* Who actually worked this setup, and the pauses that
+                        were not setup time. Lives here rather than behind a
+                        batch lookup elsewhere: whoever questions a figure is
+                        already looking at this changeover. */}
+                    <section className="sd-page">
+                      <ChangeoverSetupPanel changeoverId={detail.id} />
+                    </section>
+                  </>
                 );
               })()}
             </div>

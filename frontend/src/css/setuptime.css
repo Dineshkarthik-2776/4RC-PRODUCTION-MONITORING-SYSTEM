@@ -1,0 +1,697 @@
+/* ==================================================================
+   OPERATOR SETUP TIME
+   ================================================================== */
+
+.stm-wrapper {
+  padding: 20px 24px 32px;
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.stm-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.stm-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f2b46;
+}
+
+.stm-subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.stm-group-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stm-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.stm-select,
+.stm-input {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+  color: #1f2937;
+  box-sizing: border-box;
+}
+
+/* Leaves room for the shared chevron drawn in App.css. */
+select.stm-select {
+  padding-right: 34px;
+  min-width: 150px;
+}
+
+.stm-input:focus,
+.stm-select:focus {
+  outline: 2px solid #b6d4fe;
+  outline-offset: -1px;
+  border-color: #6ea8fe;
+}
+
+.stm-banner {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.stm-banner-error {
+  border: 1px solid #f5c2c7;
+  background: #fdf2f3;
+  color: #842029;
+}
+
+/* ------------------------------------------------------------- KPIs */
+
+.stm-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.stm-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.stm-kpi-warn {
+  border-color: #f0c36d;
+  background: #fff8e6;
+}
+
+.stm-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.stm-kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f2b46;
+}
+
+.stm-kpi-value em {
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-style: normal;
+  color: #6b7280;
+}
+
+.stm-note {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: #7a5c0a;
+}
+
+/* ------------------------------------------------------------ table */
+
+.stm-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.stm-table th,
+.stm-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.stm-table th {
+  background: #f8fafc;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #52606d;
+  white-space: nowrap;
+}
+
+.stm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.stm-table-compact th,
+.stm-table-compact td {
+  padding: 9px 12px;
+}
+
+.stm-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stm-strong {
+  font-weight: 600;
+  color: #0f2b46;
+}
+
+.stm-muted {
+  color: #9aa5b1;
+}
+
+.stm-bar-col {
+  width: 140px;
+}
+
+.stm-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: #eef2f6;
+  overflow: hidden;
+}
+
+.stm-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #2f6fb0;
+}
+
+.stm-empty {
+  padding: 28px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #fafbfc;
+  color: #6b7280;
+  text-align: center;
+}
+
+/* ----------------------------------------------------------- panels */
+
+.stm-panel {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.stm-panel-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f2b46;
+}
+
+.stm-panel-help {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.stm-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  /* Top-aligned, not bottom-aligned: "Resumed at" carries a hint line
+     under its input, so aligning on the bottom edge lifted that whole
+     field above its neighbours and the labels stopped lining up. */
+  align-items: start;
+}
+
+.stm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.stm-field-wide {
+  grid-column: 1 / -1;
+}
+
+/* "Manpower — Operator not available" is far longer than a date or a
+   batch number, and a select clips rather than wraps, so it gets two
+   columns where there is room for two. */
+.stm-field-reason {
+  grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .stm-field-reason {
+    grid-column: 1 / -1;
+  }
+}
+
+.stm-hint {
+  font-size: 11px;
+  color: #9aa5b1;
+}
+
+.stm-submit {
+  /* Its own row, so it never has to share a baseline with a field. */
+  grid-column: 1 / -1;
+  justify-self: start;
+  height: 36px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 6px;
+  background: #0f2b46;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stm-submit:hover:not(:disabled) {
+  background: #163c61;
+}
+
+.stm-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.stm-lookup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.stm-detail-head {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 12px;
+  color: #52606d;
+}
+
+.stm-detail-title {
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #52606d;
+}
+
+.stm-interruptions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stm-interruptions li {
+  padding: 8px 10px;
+  border: 1px solid #f1f3f5;
+  border-radius: 6px;
+  background: #fafbfc;
+  font-size: 12px;
+}
+
+.stm-tag {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2f6;
+  font-size: 11px;
+  font-weight: 600;
+  color: #35506b;
+}
+
+@media (max-width: 720px) {
+  .stm-wrapper {
+    padding: 16px;
+  }
+
+  .stm-table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* ==================================================================
+   PER-CHANGEOVER SETUP PANEL -- inside the changeover detail modal
+   ================================================================== */
+
+.csp-panel {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+/* On a page of its own the panel has a whole modal to fill, so it reads
+   at the same size as the changeover detail opposite it rather than at
+   the smaller scale it used when squeezed under the form. */
+.sd-page .csp-panel {
+  font-size: 15px;
+}
+
+.sd-page .csp-title {
+  font-size: 13px;
+}
+
+.sd-page .csp-window {
+  font-size: 13px;
+}
+
+.sd-page .stm-table th {
+  padding: 13px 16px;
+  font-size: 12px;
+}
+
+.sd-page .stm-table td {
+  padding: 14px 16px;
+  font-size: 15px;
+}
+
+.sd-page .stm-interruptions li {
+  padding: 13px 16px;
+  font-size: 14px;
+}
+
+.sd-page .stm-tag {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.sd-page .csp-add {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.sd-page .stm-muted {
+  font-size: 14px;
+}
+
+.csp-head,
+.csp-subhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.csp-subhead {
+  margin-top: 18px;
+}
+
+.csp-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #52606d;
+}
+
+.csp-window {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.csp-add,
+.csp-cancel {
+  padding: 5px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #35506b;
+  cursor: pointer;
+}
+
+.csp-add:hover,
+.csp-cancel:hover {
+  background: #f3f6f9;
+}
+
+.csp-remove {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border: 1px solid #e3c7c9;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 11px;
+  color: #9b3a42;
+  cursor: pointer;
+}
+
+.csp-remove:hover {
+  background: #fdf2f3;
+}
+
+.csp-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  align-items: start;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.csp-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.csp-actions .stm-submit {
+  grid-column: auto;
+}
+
+.stm-footnote {
+  margin: 18px 0 0;
+  padding: 12px 14px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #fafbfc;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* A datetime-local renders "08/11/2026, 02:20 PM" plus a picker icon.
+   At the grid's 170px minimum the icon sits on top of the AM/PM marker,
+   so these need more room than a plain text field. */
+.csp-form .stm-field,
+.stm-form .stm-field {
+  min-width: 0;
+}
+
+input[type="datetime-local"].stm-input {
+  min-width: 210px;
+  width: 100%;
+}
+
+@media (max-width: 560px) {
+  input[type="datetime-local"].stm-input {
+    min-width: 0;
+  }
+}
+
+/* ---------------- status, assignment and review controls ------------- */
+
+.csp-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.csp-badge-pending  { background: #fef7e0; color: #8a6d00; }
+.csp-badge-approved { background: #e6f4ea; color: #137333; }
+.csp-badge-rejected { background: #fdecea; color: #a52834; }
+.csp-badge-manual   { background: #eef2f6; color: #35506b; }
+
+/* A pending pause is recorded but counting for nothing -- it should not
+   read as though it had already taken minutes off somebody. */
+.csp-pending {
+  border-style: dashed;
+  background: #fffdf7;
+}
+
+.csp-note {
+  margin-left: 8px;
+  font-size: 11px;
+  font-style: italic;
+  color: #8a6d00;
+}
+
+.csp-awaiting {
+  margin-left: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #fef7e0;
+  color: #8a6d00;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.csp-link {
+  margin-left: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2f6fb0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.csp-link:hover { color: #1d4f82; }
+
+.csp-assign {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+select.csp-assign-select {
+  height: 32px;
+  min-width: 190px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.csp-approve,
+.csp-reject {
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.csp-approve {
+  border: 1px solid #a8d5b5;
+  background: #fff;
+  color: #137333;
+}
+
+.csp-approve:hover:not(:disabled) { background: #e6f4ea; }
+
+.csp-reject {
+  border: 1px solid #e3c7c9;
+  background: #fff;
+  color: #a52834;
+}
+
+.csp-reject:hover:not(:disabled) { background: #fdecea; }
+
+.csp-approve:disabled,
+.csp-reject:disabled { opacity: 0.5; cursor: default; }
+
+/* The reject reason, asked for inline instead of through window.prompt. */
+.csp-reject-form {
+  display: block;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #e3c7c9;
+  border-radius: 8px;
+  background: #fffafa;
+}
+
+.csp-reject-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.csp-reject-row .stm-input {
+  flex: 1 1 260px;
+  min-width: 0;
+  height: 34px;
+}
+
+.csp-reject-row .csp-reject,
+.csp-reject-row .csp-cancel {
+  margin-left: 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* Over and under the standard. Colour carries the sign so the two are
+   not read as the same number at a glance; the sign is printed too,
+   since colour alone is not a message everyone receives. */
+.stm-over {
+  color: #a52834;
+  font-weight: 700;
+}
+
+.stm-under {
+  color: #137333;
+  font-weight: 700;
+}
+
+/* Two averages on one row need saying apart; the difference between
+   them is the whole argument an operator would make. */
+.stm-legend {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.stm-legend strong {
+  color: #35506b;
+  font-weight: 700;
+}

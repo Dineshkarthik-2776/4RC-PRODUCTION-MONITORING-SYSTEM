@@ -41,7 +41,8 @@ select.dip-filter-select,
 select.um-input,
 select.rm-select,
 select.rm-input,
-select.sd-select {
+select.sd-select,
+select.stm-select {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;

@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../css/header.css";
 import User from "../assets/user.png";
 import SettingsModal from "./SettingsModal";
 import { useNotification } from "../context/NotificationContext";
+import { useShift } from "../context/ShiftContext";
+import LineStatus from "./LineStatus";
+import "../css/shift.css";
 
 const Header = () => {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -18,18 +20,22 @@ const Header = () => {
   const [missingRecipes, setMissingRecipes] = useState([]);
   const dropdownRef = useRef(null);
   const pollingRef = useRef(null);
-  const navigate = useNavigate();
   const { showNotification } = useNotification();
+  const { duty, secondsLeft, isEndingSoon, signOut, signingOut } = useShift();
 
   // Get user data from localStorage
   const user = JSON.parse(localStorage.getItem("user") || '{}');
   // There is no admin role: an administrator is a manager carrying
   // is_superuser, so this one check covers both.
   const isManager = user.role === 'manager';
+  // Approving is a shift decision, not only a management one, so the
+  // correction queue is open to shift incharges too. Settings and the
+  // master data stay with managers.
+  const canApprove = ['manager', 'shift_incharge'].includes(user.role);
 
   // Fetch correction requests (Manager only)
   const fetchCorrectionRequests = async () => {
-    if (!isManager) return;
+    if (!canApprove) return;
 
     try {
       const token = localStorage.getItem('authToken');
@@ -99,22 +105,22 @@ const Header = () => {
 
   // Start polling for correction requests (every 2 minutes for managers)
   useEffect(() => {
-    if (isManager) {
-      fetchCorrectionRequests(); // Initial fetch
-      fetchMissingWarnings();
-      
-      pollingRef.current = setInterval(() => {
-        fetchCorrectionRequests();
-        fetchMissingWarnings();
-      }, 2 * 60 * 1000); // 2 minutes
+    if (!canApprove) return undefined;
 
-      return () => {
-        if (pollingRef.current) {
-          clearInterval(pollingRef.current);
-        }
-      };
-    }
-  }, [isManager]);
+    fetchCorrectionRequests(); // Initial fetch
+    fetchMissingWarnings();    // no-ops for a shift incharge
+
+    pollingRef.current = setInterval(() => {
+      fetchCorrectionRequests();
+      fetchMissingWarnings();
+    }, 2 * 60 * 1000); // 2 minutes
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, [canApprove]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -133,12 +139,10 @@ const Header = () => {
     };
   }, [isDropdownOpen]);
 
-  // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("user");
-    navigate("/login");
-  };
+  // Signing out goes through the server now: it closes the operator's
+  // duty session and destroys the token. Dropping the token locally on
+  // its own left them showing as still on the line.
+  const handleLogout = () => signOut("manual");
 
   // Toggle dropdown
   const toggleDropdown = () => {
@@ -164,6 +168,29 @@ const Header = () => {
 
         {/* Right Side - Recipe Master Icon + Bell Icon + User Dropdown */}
         <div className="h-right-section">
+
+          {/* Reporting a stoppage as it happens. First, because when the
+              line is down this is the only thing anyone needs. */}
+          <LineStatus />
+
+          {/* Only operators have a shift attached, so only they see this. */}
+          {duty && (
+            <span
+              className={`sb-chip ${isEndingSoon ? "sb-chip-ending" : ""}`}
+              title={`${duty.shift} shift ends at ${new Date(duty.shift_ends_at)
+                .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+            >
+              <span className="sb-chip-dot" />
+              {duty.shift} shift
+              {secondsLeft !== null && secondsLeft > 0 && (
+                <>
+                  {" · "}
+                  {Math.floor(secondsLeft / 3600)}h{" "}
+                  {Math.floor((secondsLeft % 3600) / 60)}m left
+                </>
+              )}
+            </span>
+          )}
 
           <button
             type="button"
@@ -216,8 +243,8 @@ const Header = () => {
             </div>
           )}
 
-          {/* Notification Bell Icon - Only for Managers */}
-          {isManager && (
+          {/* Correction requests -- shift incharges approve these too */}
+          {canApprove && (
             <div 
               className="h-notification-icon"
               onClick={() => setIsCorrectionModalOpen(true)}
@@ -283,6 +310,7 @@ const Header = () => {
                 <button 
                   className="h-dropdown-item h-logout-button" 
                   onClick={handleLogout}
+                  disabled={signingOut}
                 >
                   <svg 
                     className="h-logout-icon" 
@@ -307,7 +335,7 @@ const Header = () => {
 
 
       {/* Correction Requests Modal */}
-      {isCorrectionModalOpen && isManager && (
+      {isCorrectionModalOpen && canApprove && (
         <>
           <div 
             className="h-modal-overlay" 

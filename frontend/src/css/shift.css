@@ -1,0 +1,271 @@
+/* ==================================================================
+   SHIFT BANNER -- the countdown before an operator is signed out
+   ================================================================== */
+
+.sb-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 24px 12px;
+  padding: 12px 16px;
+  border: 1px solid #f0c36d;
+  border-left: 4px solid #e0a800;
+  border-radius: 8px;
+  background: #fff8e6;
+  color: #6b4e00;
+  font-size: 13px;
+}
+
+.sb-icon {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  color: #b58100;
+}
+
+.sb-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sb-text strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sb-text span {
+  color: #7a5c0a;
+}
+
+.sb-signout {
+  flex: 0 0 auto;
+  padding: 7px 14px;
+  border: 1px solid #b58100;
+  border-radius: 6px;
+  background: #fff;
+  color: #6b4e00;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sb-signout:hover:not(:disabled) {
+  background: #fdf1d2;
+}
+
+.sb-signout:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* The on-duty chip in the header. */
+.sb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid #cfe3d4;
+  border-radius: 999px;
+  background: #eef7f0;
+  color: #1c6b3a;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sb-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22a35b;
+}
+
+.sb-chip-ending {
+  border-color: #f0c36d;
+  background: #fff8e6;
+  color: #6b4e00;
+}
+
+.sb-chip-ending .sb-chip-dot {
+  background: #e0a800;
+}
+
+@media (max-width: 720px) {
+  .sb-banner {
+    flex-wrap: wrap;
+    margin: 0 16px 12px;
+  }
+
+  .sb-signout {
+    width: 100%;
+  }
+}
+
+/* ==================================================================
+   LINE STATUS -- reporting a stoppage as it happens
+   ================================================================== */
+
+.ls-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid #d9a3a8;
+  border-radius: 999px;
+  background: #fff;
+  color: #9b3a42;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ls-report:hover {
+  background: #fdf2f3;
+}
+
+.ls-chip-down {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px 5px 12px;
+  border: 1px solid #e0a0a6;
+  border-radius: 999px;
+  background: #fdecea;
+  color: #8a2630;
+  white-space: nowrap;
+}
+
+.ls-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d93025;
+  animation: ls-pulse 1.6s ease-in-out infinite;
+}
+
+/* A stopped line is not a steady state -- it should look live. */
+@keyframes ls-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ls-dot { animation: none; }
+}
+
+.ls-text {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ls-sub {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.ls-resume {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #137333;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ls-resume:hover:not(:disabled) { background: #0f5c29; }
+.ls-resume:disabled { opacity: 0.6; cursor: default; }
+
+.ls-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid #e0a0a6;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.ls-select,
+.ls-note {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+  color: #1f2937;
+}
+
+select.ls-select {
+  min-width: 210px;
+  padding-right: 32px;
+}
+
+.ls-confirm,
+.ls-cancel {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ls-confirm {
+  border: none;
+  background: #9b3a42;
+  color: #fff;
+}
+
+.ls-confirm:hover:not(:disabled) { background: #7e2f36; }
+.ls-confirm:disabled { opacity: 0.6; cursor: default; }
+
+.ls-cancel {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #35506b;
+}
+
+@media (max-width: 900px) {
+  .ls-form { flex-wrap: wrap; border-radius: 12px; }
+  select.ls-select { min-width: 0; flex: 1 1 160px; }
+}
+
+/* The shift-change question: was the line still down? */
+.ls-chip-ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px 5px 12px;
+  border: 1px solid #f0c36d;
+  border-radius: 999px;
+  background: #fff8e6;
+  color: #6b4e00;
+  white-space: nowrap;
+}
+
+.ls-still-down {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #9b3a42;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ls-still-down:hover:not(:disabled) { background: #7e2f36; }
+.ls-still-down:disabled { opacity: 0.6; cursor: default; }

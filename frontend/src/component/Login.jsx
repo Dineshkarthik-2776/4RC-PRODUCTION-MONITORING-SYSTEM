@@ -22,11 +22,19 @@ const Login = () => {
   // Arriving here with ?expired=1 means a request came back 401 and the
   // session was dropped -- say so, rather than leaving a blank form that
   // looks like an ordinary sign-out.
-  const [notice, setNotice] = useState(() =>
-    new URLSearchParams(window.location.search).has("expired")
-      ? "Your session has ended. Please sign in again."
-      : ""
-  );
+  const [notice, setNotice] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    // A shift ending is the ordinary case, not a fault -- say which it
+    // was, so an operator at 15:00 is not left wondering what broke.
+    if (params.has("shift_ended")) {
+      return "Your shift has ended, so you were signed out. "
+        + "Sign in again if you are staying on.";
+    }
+    if (params.has("expired")) {
+      return "Your session has ended. Please sign in again.";
+    }
+    return "";
+  });
 
   const isSetup = mode === MODE_SETUP;
 
