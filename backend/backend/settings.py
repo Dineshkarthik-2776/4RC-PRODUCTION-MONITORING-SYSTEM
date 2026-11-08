@@ -191,6 +191,21 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 300.0,
         'args': [False],
     },
+    'end-duty-sessions-every-minute': {
+        # Operators are signed out when their shift ends. The browser does
+        # this itself at the boundary; this is the backstop for a terminal
+        # nobody is looking at, or a browser that was closed mid-shift.
+        # Every minute, because it is one indexed query over open sessions.
+        'task': 'end_finished_duty_sessions',
+        'schedule': 60.0,
+    },
+    'close-stoppages-at-shift-end': {
+        # Same cadence and the same reason as the duty sign-out: an open
+        # stoppage left running past its shift would subtract minutes
+        # from every later changeover.
+        'task': 'close_stoppages_at_shift_end',
+        'schedule': 60.0,
+    },
     'sync-recipe-master-daily-at-7am': {
         'task': 'sync_recipe_master_from_bom',
         # CELERY_TIMEZONE is Asia/Kolkata, so this crontab is read in IST --

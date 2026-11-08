@@ -76,6 +76,8 @@ def to_local_ts(val):
 # views and the management commands cannot drift apart. Aliased here because
 # this name is used throughout the module.
 from .recipe_codes import normalize_recipe_code as _normalize_recipe_code
+from .shifts import shift_end_after, shift_for
+from .setup_capture import rebuild_allocations
 from .recipe_codes import upsert_master_recipe
 
 
@@ -291,30 +293,22 @@ def calculate_time_loss(batch, roll2, batch_first):
 # ======================================================================
 
 def calculate_shift_and_date(dt):
+    """The shift and production date for a pipeline timestamp.
+
+    A thin pandas-aware wrapper over shifts.shift_for, which holds the one
+    definition of the boundaries. This used to spell the hours out again,
+    so changing a shift time meant remembering both places.
+    """
     if pd.isna(dt):
         return None, None
-    
+
     if isinstance(dt, pd.Timestamp):
         dt = dt.to_pydatetime()
-    # Shift classification is based on the stored wall-clock time.
-    # Avoid re-interpreting an already-stored timestamp through UTC/localtime,
-    # otherwise a 06:17 record can be pushed into the wrong shift bucket.
+    # Classify on the stored wall-clock time. Re-interpreting an already
+    # stored timestamp through UTC/localtime can push a 06:17 record into
+    # the wrong shift.
     local_dt = dt.replace(tzinfo=None) if getattr(dt, 'tzinfo', None) is not None else dt
-    time_hour = local_dt.hour
-    
-    if 7 <= time_hour < 15:
-        shift = 'A'
-        prod_date = local_dt.date()
-    elif 15 <= time_hour < 23:
-        shift = 'B'
-        prod_date = local_dt.date()
-    else:
-        shift = 'C'
-        if 0 <= time_hour < 7:
-            prod_date = (local_dt - datetime.timedelta(days=1)).date()
-        else:
-            prod_date = local_dt.date()
-    return shift, prod_date
+    return shift_for(local_dt)
 
 
 # ======================================================================
@@ -745,7 +739,14 @@ def process_changeover_data(dev_mode=False):
                 summary.shift = clean_value(row.get('Shift'))
                 summary.production_date = clean_value(row.get('Production Date'))
                 summary.save()
-                
+
+                # Credit this setup window to whoever was on the line for
+                # it. Derived from the duty sessions, so it is rebuilt
+                # every pass -- a changeover whose setup window shifts, or
+                # one whose operator signed in late, corrects itself on the
+                # next run rather than keeping a stale split.
+                rebuild_allocations(summary)
+
                 summary_objects_created += 1
 
             # <--- MODIFIED LOGIC: STRICT DUAL-VERIFICATION (IN & OUT) ---
@@ -904,3 +905,89 @@ def sync_recipe_master_from_bom():
         return error_msg
 
 
+
+
+# ======================================================================
+# == CELERY TASK: end_finished_duty_sessions
+# ======================================================================
+
+@shared_task(name="end_finished_duty_sessions")
+def end_finished_duty_sessions():
+    """Sign operators out once their shift is over.
+
+    An operator's sign-in is the record of who was on the line, so leaving
+    it open past the shift would credit the next shift's setup time to
+    whoever forgot to sign out. Closing it here also revokes the auth
+    token, which is what actually ends the session: the browser's next
+    request comes back 401 and the app returns to the sign-in screen.
+
+    Only operators are affected -- they are the only ones who get a duty
+    session at all. A shift incharge or manager reviewing the dashboard at
+    23:05 stays signed in.
+
+    The browser signs itself out at the boundary too, with a warning
+    beforehand. This task is the backstop for the machine nobody is
+    looking at, and for a browser that was closed mid-shift.
+    """
+    from rest_framework.authtoken.models import Token
+
+    from .models import DutySession
+    from .setup_capture import _close, expired_duty_sessions
+
+    now = datetime.datetime.now()
+    stale = expired_duty_sessions(now)
+    if not stale:
+        return {'closed': 0}
+
+    for session in stale:
+        # _close clamps to the boundary, so the shift ends when it ended
+        # however late this task happens to run.
+        _close(session, now, DutySession.EndReason.SHIFT_ENDED)
+
+    user_ids = {session.user_id for session in stale}
+    Token.objects.filter(user_id__in=user_ids).delete()
+
+    print(f"Shift sign-out: closed {len(stale)} duty session(s) "
+          f"for {len(user_ids)} operator(s).")
+    return {'closed': len(stale), 'operators': len(user_ids)}
+
+
+# ======================================================================
+# == CELERY TASK: close_stoppages_at_shift_end
+# ======================================================================
+
+@shared_task(name="close_stoppages_at_shift_end")
+def close_stoppages_at_shift_end():
+    """Close an open line stoppage when its shift ends.
+
+    An open stoppage has no end, so the allocation treats it as running
+    to the end of whatever setup window it lands in. Left running past
+    its shift it would keep matching every later changeover, and once
+    approved it would remove the setup time from all of them -- damage
+    with no upper bound, from one forgotten button.
+
+    So it is closed at the boundary, exactly as a duty session is, and
+    marked as waiting on the next shift. If the line really is still
+    down, the incoming operator says so and a fresh stoppage starts at
+    the boundary: no minutes lost, and each shift owns its own record.
+    """
+    from .models import LineStoppage
+    from .setup_capture import rebuild_for_stoppage
+
+    now = datetime.datetime.now()
+    closed = 0
+
+    for stoppage in LineStoppage.objects.filter(ended_at__isnull=True):
+        boundary = shift_end_after(stoppage.started_at)
+        if boundary > now:
+            continue
+
+        stoppage.ended_at = boundary
+        stoppage.boundary_handover = 'pending'
+        stoppage.save(update_fields=['ended_at', 'boundary_handover'])
+        rebuild_for_stoppage(stoppage)
+        closed += 1
+
+    if closed:
+        print(f"Shift boundary: closed {closed} open line stoppage(s).")
+    return {'closed': closed}
