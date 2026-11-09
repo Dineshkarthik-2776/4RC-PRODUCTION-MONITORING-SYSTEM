@@ -2,12 +2,14 @@
 
 Three roles, forming a privilege ladder:
 
-    OPERATOR        read-only. Sees the dashboard, summaries, charts and
-                    filters, and can download the Excel, Kepware and PDF
-                    exports. Records nothing.
+    OPERATOR        the dashboard, summaries, charts and filters, and the
+                    Excel, Kepware and PDF exports. Writes one thing: a
+                    line stoppage, and only their own -- they are the
+                    person at the machine when it stops.
     SHIFT_INCHARGE  the above, plus recording overshoot reasons: adding and
                     updating them inside the 5-hour window, and submitting a
-                    correction request after it.
+                    correction request after it. Approves both queues, and
+                    sees the operator-wise summary.
     MANAGER         the above, plus overriding the 5-hour window, approving
                     or rejecting correction requests, and maintaining the
                     Recipe Master and Standard Time Master.
@@ -15,9 +17,12 @@ Three roles, forming a privilege ladder:
 An administrator is a MANAGER carrying is_staff/is_superuser, which unlocks
 Django's /admin/. There is no separate admin role.
 
-Everything readable is readable by all three roles, so plain IsAuthenticated
-remains correct for the dashboard, the exports and the reports. These classes
-cover only the places where the roles differ.
+Most of what is readable is readable by all three roles, so plain
+IsAuthenticated is still right for the dashboard, the exports and the
+reports. Two places read differently, and have their own class here: the
+operator-wise summary, which ranks operators and so is a supervisor's
+view, and a stoppage somebody else recorded, which anyone may read but
+only its author or a supervisor may change.
 """
 
 from rest_framework.permissions import SAFE_METHODS, BasePermission
@@ -112,6 +117,44 @@ class CanRecordSetupEvent(BasePermission):
             User.Role.SHIFT_INCHARGE,
             User.Role.MANAGER,
         )
+
+
+class CanAmendSetupEvent(BasePermission):
+    """Who may change or withdraw a stoppage somebody already recorded.
+
+    Recording one is open to the whole floor (CanRecordSetupEvent).
+    Changing one is not: a stoppage subtracts minutes from an
+    operator's setup figure, so letting any operator edit or delete
+    anybody's entry would let one person quietly rewrite another's
+    numbers.
+
+        manager, shift incharge  -- any stoppage. They review them.
+        operator                 -- only the one they recorded.
+
+    Reading is left open: the floor needs to see the stoppage that is
+    running, whoever reported it.
+    """
+
+    message = ('You can only change an interruption you recorded. Ask a '
+               'shift incharge or manager to change this one.')
+
+    def has_permission(self, request, view):
+        from user_authentication.models import User
+        return _role_of(request) in (
+            User.Role.OPERATOR,
+            User.Role.SHIFT_INCHARGE,
+            User.Role.MANAGER,
+        )
+
+    def has_object_permission(self, request, view, obj):
+        from user_authentication.models import User
+        if request.method in SAFE_METHODS:
+            return True
+        if _role_of(request) in (User.Role.MANAGER, User.Role.SHIFT_INCHARGE):
+            return True
+        # An operator, and only their own. LineStoppage.recorded_by is
+        # NOT NULL, so there is always somebody to compare against.
+        return obj.recorded_by_id == request.user.id
 
 
 class CanApproveRequests(BasePermission):

@@ -37,7 +37,7 @@ const variance = (value) => {
 /**
  * Operator-wise setup time, totalled over the selected range.
  *
- * Three figures rather than one: time on the line, the delay taken off
+ * Three figures rather than one: time on the line, the interruptions taken off
  * it, and the setup time that remains. "Two hours, forty minutes of it a
  * breakdown" is a different story from two hours, and an operator judged
  * on the first number deserves to see the second.
@@ -144,7 +144,7 @@ const OperatorSetupTime = () => {
           <span className="stm-kpi-value">{minutes(totals?.allocated_minutes)}<em>min</em></span>
         </div>
         <div className="stm-kpi">
-          <span className="stm-kpi-label">Delay</span>
+          <span className="stm-kpi-label">Interruptions</span>
           <span className="stm-kpi-value">{minutes(totals?.interrupted_minutes)}<em>min</em></span>
         </div>
         <div className="stm-kpi">
@@ -152,7 +152,7 @@ const OperatorSetupTime = () => {
           <span className="stm-kpi-value">{totals?.setups ?? 0}</span>
         </div>
         <div className="stm-kpi">
-          <span className="stm-kpi-label">Avg vs standard</span>
+          <span className="stm-kpi-label">Avg act vs standard</span>
           <span className="stm-kpi-value">
             {totals?.average_standard_minutes === null ||
              totals?.average_standard_minutes === undefined
@@ -169,7 +169,7 @@ const OperatorSetupTime = () => {
 
       <p className="stm-legend">
         <strong>Avg actual</strong> is setup time per changeover, with any
-        approved delay already taken off — a standard is a target for setup
+        approved interruptions already taken off — a standard is a target for setup
         work, and a breakdown is not setup work.
       </p>
 
@@ -195,7 +195,7 @@ const OperatorSetupTime = () => {
               {groupBy === "operator" && <th>Employee ID</th>}
               <th className="stm-num">Changeovers</th>
               <th className="stm-num">On the line</th>
-              <th className="stm-num">Delay</th>
+              <th className="stm-num">Interruptions</th>
               <th className="stm-num">Setup Time</th>
               <th className="stm-num">Avg actual</th>
               <th className="stm-num">Avg standard</th>

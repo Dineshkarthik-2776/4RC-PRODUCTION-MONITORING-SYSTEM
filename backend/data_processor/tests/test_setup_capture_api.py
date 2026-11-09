@@ -8,6 +8,7 @@ leaving an operator looking at a number they know is wrong.
 
 import datetime
 
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -430,8 +431,12 @@ class SetupTimeSummaryTests(RealDatabaseGuard, TestCase):
         self.changeover = make_changeover()
         rebuild_allocations(self.changeover)
 
+        # The summary is a supervisor's view -- an operator is refused
+        # it, which OperatorSummaryVisibilityTests covers. These tests
+        # are about the arithmetic, so they read it as one.
+        self.supervisor = make_user('SI-SUM', role=User.Role.SHIFT_INCHARGE)
         self.client = APIClient()
-        self.client.force_authenticate(self.first)
+        self.client.force_authenticate(self.supervisor)
 
     def get(self, query=''):
         return self.client.get(
@@ -1224,3 +1229,175 @@ class ShiftBoundaryHandoverTests(RealDatabaseGuard, TestCase):
             {'answer': 'maybe'}, format='json')
 
         self.assertEqual(response.status_code, 400)
+
+
+@fast_passwords
+class WithdrawingAnInterruptionTests(RealDatabaseGuard, TestCase):
+    """Who may change or delete a stoppage somebody already recorded.
+
+    Recording one is open to the whole floor, because the person at the
+    machine is the one who knows. Changing one is not: the minutes come
+    off somebody's setup figure, so an operator is held to their own
+    entries and anything wider goes to a supervisor.
+    """
+
+    def setUp(self):
+        self.reason = OvershootReasons.objects.create(
+            category='Machine', reason='Breakdown during setup')
+        self.author = make_user('OP-A')
+        self.other = make_user('OP-B')
+        self.incharge = make_user('SI-1', role=User.Role.SHIFT_INCHARGE)
+        self.manager = make_user('MG-1', role=User.Role.MANAGER)
+        self.stoppage = LineStoppage.objects.create(
+            reason=self.reason,
+            started_at=D(2026, 11, 8, 8, 10),
+            ended_at=D(2026, 11, 8, 8, 25),
+            recorded_by=self.author,
+            status=LineStoppage.Status.PENDING)
+
+    def as_(self, user):
+        client = APIClient()
+        client.force_authenticate(user)
+        return client
+
+    def url(self):
+        return f'/api/line-stoppages/{self.stoppage.pk}/'
+
+    # --- deleting -------------------------------------------------
+
+    def test_the_operator_who_recorded_it_may_delete_it(self):
+        response = self.as_(self.author).delete(self.url())
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(
+            LineStoppage.objects.filter(pk=self.stoppage.pk).exists())
+
+    def test_another_operator_may_not_delete_it(self):
+        response = self.as_(self.other).delete(self.url())
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(
+            LineStoppage.objects.filter(pk=self.stoppage.pk).exists())
+
+    def test_a_shift_incharge_may_delete_anybodys(self):
+        response = self.as_(self.incharge).delete(self.url())
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(
+            LineStoppage.objects.filter(pk=self.stoppage.pk).exists())
+
+    def test_a_manager_may_delete_anybodys(self):
+        response = self.as_(self.manager).delete(self.url())
+
+        self.assertEqual(response.status_code, 204)
+
+    def test_every_stoppage_has_a_recorder_to_compare_against(self):
+        # The rule leans on recorded_by being present. It is NOT NULL
+        # and PROTECT at the database, so there is no "nobody recorded
+        # it" case for an operator to slip through on.
+        field = LineStoppage._meta.get_field('recorded_by')
+        self.assertFalse(field.null)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            LineStoppage.objects.create(
+                reason=self.reason,
+                started_at=D(2026, 11, 8, 12, 0),
+                recorded_by=None)
+
+    # --- editing --------------------------------------------------
+
+    def test_another_operator_may_not_edit_it(self):
+        response = self.as_(self.other).patch(
+            self.url(), {'note': 'not mine to touch'}, format='json')
+
+        self.assertEqual(response.status_code, 403)
+        self.stoppage.refresh_from_db()
+        self.assertEqual(self.stoppage.note, '')
+
+    def test_the_author_may_still_close_their_own(self):
+        # Closing a running stoppage is a PATCH with ended_at -- the
+        # "line running again" button. The rule must not break it.
+        running = LineStoppage.objects.create(
+            reason=self.reason,
+            started_at=D(2026, 11, 8, 10, 0),
+            recorded_by=self.author,
+            status=LineStoppage.Status.PENDING)
+
+        response = self.as_(self.author).patch(
+            f'/api/line-stoppages/{running.pk}/',
+            {'ended_at': '2026-11-08T10:20:00'}, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        running.refresh_from_db()
+        self.assertEqual(running.ended_at, D(2026, 11, 8, 10, 20))
+
+    # --- reading stays open ---------------------------------------
+
+    def test_any_operator_may_read_it(self):
+        # The floor needs to see the stoppage that is running, whoever
+        # reported it.
+        response = self.as_(self.other).get(self.url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['recorded_by_employee_id'], 'OP-A')
+
+    def test_the_employee_id_is_published_so_the_client_can_match(self):
+        response = self.as_(self.author).get(self.url())
+
+        self.assertEqual(response.data['recorded_by_employee_id'],
+                         self.author.employee_id)
+
+
+@fast_passwords
+class OperatorSummaryVisibilityTests(RealDatabaseGuard, TestCase):
+    """The operator-wise summary ranks people against each other.
+
+    That is a supervisor's view. An operator still needs to see how one
+    changeover was split -- they record the interruptions on it -- so
+    the per-changeover endpoint stays open to them. Only the league
+    table is closed.
+    """
+
+    def setUp(self):
+        self.operator = make_user('OP-X')
+        self.incharge = make_user('SI-X', role=User.Role.SHIFT_INCHARGE)
+        self.manager = make_user('MG-X', role=User.Role.MANAGER)
+        self.changeover = make_changeover(batch=771.0)
+
+    def as_(self, user):
+        client = APIClient()
+        client.force_authenticate(user)
+        return client
+
+    def test_an_operator_is_refused_the_summary(self):
+        response = self.as_(self.operator).get('/api/setup-time/summary/')
+        self.assertEqual(response.status_code, 403)
+
+    def test_a_shift_incharge_may_read_it(self):
+        response = self.as_(self.incharge).get('/api/setup-time/summary/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_a_manager_may_read_it(self):
+        response = self.as_(self.manager).get('/api/setup-time/summary/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_anonymous_is_refused(self):
+        self.assertEqual(
+            APIClient().get('/api/setup-time/summary/').status_code, 401)
+
+    def test_every_grouping_is_closed_not_just_the_default(self):
+        # group_by=shift or date does not name anybody, but it is still
+        # the same comparison of the shift's performance.
+        for grouping in ('operator', 'shift', 'date', 'machine'):
+            with self.subTest(group_by=grouping):
+                response = self.as_(self.operator).get(
+                    '/api/setup-time/summary/', {'group_by': grouping})
+                self.assertEqual(response.status_code, 403)
+
+    def test_an_operator_can_still_see_one_changeovers_split(self):
+        # The detail panel is where they record an interruption. Closing
+        # the summary must not close this.
+        response = self.as_(self.operator).get(
+            f'/api/setup-time/{self.changeover.pk}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('interruptions', response.data)

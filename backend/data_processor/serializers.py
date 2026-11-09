@@ -251,6 +251,11 @@ class LineStoppageSerializer(serializers.ModelSerializer):
     category = serializers.CharField(source='reason.category', read_only=True)
     reason_label = serializers.CharField(source='reason.reason', read_only=True)
     recorded_by_label = serializers.SerializerMethodField()
+    # The client knows the signed-in employee ID and nothing else about
+    # them, so this is what it compares against to decide whether to
+    # offer Remove. The API still enforces it.
+    recorded_by_employee_id = serializers.CharField(
+        source='recorded_by.employee_id', read_only=True, default=None)
     reviewed_by_label = serializers.SerializerMethodField()
     status_display = serializers.CharField(
         source='get_status_display', read_only=True)
@@ -263,13 +268,15 @@ class LineStoppageSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'reason', 'category', 'reason_label', 'note',
             'started_at', 'ended_at', 'duration_minutes', 'is_running',
-            'recorded_by_label', 'created_at', 'updated_at',
+            'recorded_by_label', 'recorded_by_employee_id',
+            'created_at', 'updated_at',
             'status', 'status_display', 'reviewed_by_label', 'reviewed_at',
             'review_note', 'counts', 'boundary_handover',
         ]
         read_only_fields = [
             'id', 'category', 'reason_label', 'duration_minutes', 'is_running',
-            'recorded_by_label', 'created_at', 'updated_at',
+            'recorded_by_label', 'recorded_by_employee_id',
+            'created_at', 'updated_at',
             'status', 'status_display', 'reviewed_by_label', 'reviewed_at',
             'review_note', 'counts', 'boundary_handover',
         ]

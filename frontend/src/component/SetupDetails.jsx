@@ -520,14 +520,11 @@ const SetupDetails = ({ viewType = "details" }) => {
 
             <div className="sd-modal-body">
               {(() => {
+                // The reason and category are recorded in the row this
+                // modal was opened from. Repeating the same two selects
+                // here meant two places to save the same field, and the
+                // one on this page was the easier of the two to miss.
                 const detail = selectedDetailData;
-                const hasReason = detail.overshoot_reason && detail.overshoot_reason.trim() !== "";
-                const displayReason = reasons[detail.id] !== undefined
-                  ? reasons[detail.id]
-                  : (detail.overshoot_reason || "");
-                const displayCategory = categories[detail.id] !== undefined
-                  ? categories[detail.id]
-                  : (detail.overshoot_category || "None");
 
                 return (
                   <>
@@ -547,63 +544,6 @@ const SetupDetails = ({ viewType = "details" }) => {
                       <div className="sd-single-item"><span className="sd-single-label">Over Shoot</span><span className={`sd-single-value ${(Number(detail.shoot) || 0) > 0 ? "sd-detail-overshoot" : "sd-detail-normal"}`}>{renderFormattedMetric(detail.shoot)}</span></div>
                       <div className="sd-single-item"><span className="sd-single-label">Start Time</span><span className="sd-single-value">{renderFormattedDateTime(detail.start_time)}</span></div>
                       <div className="sd-single-item sd-single-item-full"><span className="sd-single-label">Remarks</span><span className="sd-single-value sd-single-wrap">{renderValueOrNA(detail.remarks)}</span></div>
-                    </div>
-
-                    <div className="sd-single-form">
-                      <div className="sd-single-inline-row">
-                        <div className="sd-single-inline-item sd-inline-category">
-                        <label className="sd-single-label">Category</label>
-                        <select
-                          className={`sd-select sd-single-select ${hasReason ? "sd-select-filled" : ""}`}
-                          value={displayCategory}
-                          onChange={(e) => {
-                            handleCategoryChange(detail.id, e.target.value);
-                            handleReasonChange(detail.id, ""); // Reset reason
-                          }}
-                        >
-                          <option value="">Select Category</option>
-                          {[...new Set(overshootOptions.map(opt => opt.category))].map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                        </div>
-
-                        <div className="sd-single-inline-item sd-inline-reason">
-                        <label className="sd-single-label">Reason</label>
-                        <select
-                          className={`sd-select sd-single-select ${hasReason ? "sd-select-filled" : ""}`}
-                          value={reasons[detail.id] !== undefined ? reasons[detail.id] : (detail.overshoot_id || "")}
-                          onChange={(e) => handleReasonChange(detail.id, e.target.value)}
-                          disabled={!displayCategory}
-                        >
-                          <option value="">Select Reason</option>
-                          {overshootOptions
-                            .filter(opt => opt.category === displayCategory)
-                            .map(opt => (
-                              <option key={opt.id} value={opt.id}>{opt.reason}</option>
-                            ))
-                          }
-                        </select>
-                        </div>
-
-                        <div className="sd-single-inline-item sd-inline-action">
-                        <button
-                          type="button"
-                          onClick={() => handleReasonSubmit(
-                            detail.id,
-                            detail.overshoot_id
-                          )}
-                          className="sd-btn-save sd-btn-save-primary"
-                          disabled={saving[detail.id]}
-                        >
-                          {saving[detail.id] ? (
-                            <span className="sd-btn-loader"></span>
-                          ) : (
-                            hasReason ? "Save Changes" : "Save Changes"
-                          )}
-                        </button>
-                        </div>
-                      </div>
                     </div>
 
                     <p className="sd-page-hint">

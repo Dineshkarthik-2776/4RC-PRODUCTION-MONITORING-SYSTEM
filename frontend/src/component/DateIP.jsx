@@ -6,9 +6,19 @@ import "../css/DateIP.css";
 import { useApiData } from "../context/ApiContext";
 import { useNotification } from "../context/NotificationContext";
 
+// Matches ApiContext's formatDate, so the draft range and the applied
+// range are compared in the same shape. Local parts, never toISOString:
+// that converts to UTC and would shift the date by a day either side of
+// midnight.
+const formatForCompare = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const DateIP = () => {
   const { 
-    updateDateRange, 
     dateRange, 
     loading, 
     error, 
@@ -16,8 +26,7 @@ const DateIP = () => {
     selectedShift,
     selectedRecipe,
     recipeNames,
-    updateShiftFilter,
-    updateRecipeFilter
+    applyFilters
   } = useApiData();
   const { showNotification } = useNotification();
 
@@ -38,6 +47,21 @@ const DateIP = () => {
   ]);
   
   const [showCalendar, setShowCalendar] = useState(false);
+
+  // What the toolbar is showing, which is not yet what the dashboard is
+  // showing. Nothing below reads these until Apply commits them.
+  const [draftShift, setDraftShift] = useState(selectedShift);
+  const [draftRecipe, setDraftRecipe] = useState(selectedRecipe);
+
+  // The filters that are actually in force, as the context last applied
+  // them. Comparing against the draft is what lights up the button.
+  const appliedRange = `${dateRange.from_date}|${dateRange.to_date}`;
+  const draftRangeKey =
+    `${formatForCompare(range[0].startDate)}|${formatForCompare(range[0].endDate)}`;
+  const isDirty =
+    draftShift !== selectedShift ||
+    draftRecipe !== selectedRecipe ||
+    draftRangeKey !== appliedRange;
 
   // Kepware logs are a separate concern from the summary exports: they pull
   // raw line data for ONE day, independent of the dashboard date range. The
@@ -86,8 +110,13 @@ const DateIP = () => {
   const [logDate, setLogDate] = useState(getLocalDateString());
 
   const handleSubmit = () => {
-    // Update context with selected dates
-    updateDateRange(range[0].startDate, range[0].endDate);
+    // One commit for the whole bar -- date, shift and recipe together.
+    applyFilters({
+      startDate: range[0].startDate,
+      endDate: range[0].endDate,
+      shift: draftShift,
+      recipe: draftRecipe,
+    });
     setShowCalendar(false);
   };
 
@@ -255,8 +284,8 @@ const handleDownloadLogs = async () => {
           {/* Shift Filter */}
           <select 
             className="dip-filter-select" 
-            value={selectedShift}
-            onChange={(e) => updateShiftFilter(e.target.value)}
+            value={draftShift}
+            onChange={(e) => setDraftShift(e.target.value)}
           >
             <option value="">All Shifts</option>
             <option value="A">Shift A</option>
@@ -267,8 +296,8 @@ const handleDownloadLogs = async () => {
           {/* Recipe Filter */}
           <select 
             className="dip-filter-select" 
-            value={selectedRecipe}
-            onChange={(e) => updateRecipeFilter(e.target.value)}
+            value={draftRecipe}
+            onChange={(e) => setDraftRecipe(e.target.value)}
           >
             <option value="">All Recipes</option>
             {recipeNames.map(name => (
@@ -305,16 +334,20 @@ const handleDownloadLogs = async () => {
             )}
           </div>
 
-          {/* GET Button */}
-          <button 
-            className="dip-submit-btn" 
+          {/* Apply. Nothing above this takes effect until it is
+              pressed, so it says when there is something waiting. */}
+          <button
+            className={`dip-submit-btn ${isDirty ? "dip-submit-dirty" : ""}`}
             onClick={handleSubmit}
             disabled={loading}
+            title={isDirty
+              ? "Apply the filters you have changed"
+              : "Reload with the current filters"}
           >
             {loading ? (
               <span className="dip-btn-loader"></span>
             ) : (
-              'GET'
+              'Apply'
             )}
           </button>
 

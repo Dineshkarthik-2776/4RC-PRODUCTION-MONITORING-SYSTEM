@@ -345,6 +345,87 @@
   gap: 16px;
 }
 
+/* Two queues share one modal, so each needs a heading to say which
+   decision is being made. The second one gets a rule above it. */
+.h-queue-heading {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6B7280;
+}
+
+.h-requests-list + .h-queue-heading {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #E5E7EB;
+}
+
+.h-queue-note {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6B7280;
+}
+
+/* Rejecting needs a reason, so the button opens a form in place rather
+   than firing a request that the server would turn down. */
+.h-reject-form {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed #E5E7EB;
+}
+
+.h-reject-form label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.h-reject-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.h-reject-row input {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: #111827;
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+}
+
+.h-reject-row input:focus {
+  outline: none;
+  border-color: #9CA3AF;
+  box-shadow: 0 0 0 3px rgba(156, 163, 175, 0.25);
+}
+
+.h-btn-cancel {
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.h-btn-cancel:hover {
+  background: #F3F4F6;
+}
+
 .h-request-card {
   border: 1px solid #E5E7EB;
   border-radius: 8px;

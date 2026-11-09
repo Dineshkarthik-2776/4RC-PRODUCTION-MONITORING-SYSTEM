@@ -13,6 +13,7 @@ from rest_framework.parsers import MultiPartParser, FormParser ,JSONParser
 from rest_framework.permissions import IsAuthenticated
 from user_authentication.models import User
 from user_authentication.permissions import (
+    CanAmendSetupEvent,
     CanApproveRequests,
     CanRecordOvershootReason,
     CanRecordSetupEvent,
@@ -1133,12 +1134,17 @@ class LineStoppageDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
     Closing one is a PATCH with ended_at -- what the "line running
     again" button sends.
+
+    Anybody on the floor may record a stoppage, but changing one is
+    narrower: a manager, a shift incharge, or the person who recorded
+    it. Otherwise one operator could withdraw another's interruption
+    and silently move the minutes back onto them.
     """
 
     queryset = LineStoppage.objects.select_related(
         'reason', 'recorded_by', 'reviewed_by')
     serializer_class = LineStoppageSerializer
-    permission_classes = [CanRecordSetupEvent]
+    permission_classes = [CanAmendSetupEvent]
 
     def perform_update(self, serializer):
         before = self.get_object()
@@ -1357,9 +1363,15 @@ class SetupTimeSummaryAPIView(APIView):
     Setup efficiency compares the allocated time against the changeover's
     standard time. A changeover with no standard time configured is left
     out of the efficiency figure rather than counted as perfect.
+
+    Supervisors only. This ranks operators against one another, which is
+    a supervisor's view of the shift rather than something to put in
+    front of the people being ranked. An operator still sees how one
+    changeover was split, through ChangeoverSetupDetailAPIView -- that is
+    their own work on one setup, not a league table.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanApproveRequests]
 
     GROUPINGS = {
         'operator': ('operator__employee_id', 'operator__name'),

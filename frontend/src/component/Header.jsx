@@ -8,13 +8,29 @@ import { useShift } from "../context/ShiftContext";
 import LineStatus from "./LineStatus";
 import "../css/shift.css";
 
+// Timestamps arrive as naive local wall-clock ("2026-11-09T18:02:00"),
+// which is what the plant means by the time. Parsing by hand keeps it
+// that way -- new Date() on a bare string is fine, but anything that
+// round-trips through UTC shifts it by the offset.
+const formatStamp = (value) => {
+  if (!value) return "—";
+  const [date, clock = ""] = String(value).split("T");
+  const [y, m, d] = date.split("-");
+  return `${d}/${m}/${y} ${clock.slice(0, 5)}`.trim();
+};
+
+// "approve" + "d" reads fine; "reject" + "d" gives "rejectd".
+const pastTense = (action) => (action === 'approve' ? 'approved' : 'rejected');
+
 const Header = () => {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [correctionRequests, setCorrectionRequests] = useState([]);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [interruptionRequests, setInterruptionRequests] = useState([]);
+  const [rejecting, setRejecting] = useState(null);   // interruption id
+  const [rejectNote, setRejectNote] = useState("");
   const [processingRequest, setProcessingRequest] = useState(null);
   const [missingWarning, setMissingWarning] = useState(false);
   const [missingRecipes, setMissingRecipes] = useState([]);
@@ -33,6 +49,11 @@ const Header = () => {
   // master data stay with managers.
   const canApprove = ['manager', 'shift_incharge'].includes(user.role);
 
+  // One bell, two queues. Both are the same decision -- "is this claim
+  // about what happened on the line true?" -- made by the same people,
+  // so splitting them across two icons would only hide one of them.
+  const pendingCount = correctionRequests.length + interruptionRequests.length;
+
   // Fetch correction requests (Manager only)
   const fetchCorrectionRequests = async () => {
     if (!canApprove) return;
@@ -46,9 +67,29 @@ const Header = () => {
       });
 
       setCorrectionRequests(response.data);
-      setPendingCount(response.data.length);
     } catch (err) {
       console.error('Failed to fetch correction requests:', err);
+    }
+  };
+
+  // Interruptions an operator recorded. A manager's or shift incharge's
+  // own entry is approved the moment it is saved, so anything still
+  // PENDING came from the floor and is waiting on one of us.
+  const fetchInterruptionRequests = async () => {
+    if (!canApprove) return;
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await axios.get(
+        `${API_BASE_URL}/api/line-stoppages/?status=pending`,
+        { headers: { 'Authorization': `Token ${token}` } }
+      );
+
+      setInterruptionRequests(response.data);
+    } catch (err) {
+      console.error('Failed to fetch interruption requests:', err);
     }
   };
 
@@ -90,7 +131,7 @@ const Header = () => {
         }
       );
 
-      showNotification(`Request ${action}d successfully!`, 'success');
+      showNotification(`Request ${pastTense(action)} successfully!`, 'success');
       
       // Refresh the list
       await fetchCorrectionRequests();
@@ -103,15 +144,56 @@ const Header = () => {
     }
   };
 
-  // Start polling for correction requests (every 2 minutes for managers)
+  // Approve or reject a recorded interruption. Until it is approved it
+  // subtracts nothing, so a queue nobody looks at quietly leaves the
+  // operator carrying minutes that were not their doing.
+  const handleInterruptionAction = async (stoppageId, action, note = "") => {
+    setProcessingRequest(`stoppage-${stoppageId}`);
+
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        showNotification('Authentication required', 'error');
+        return;
+      }
+
+      await axios.post(
+        `${API_BASE_URL}/api/line-stoppages/${stoppageId}/review/`,
+        { action, note },
+        {
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      showNotification(`Interruption ${pastTense(action)} successfully!`, 'success');
+      setRejecting(null);
+      setRejectNote("");
+      await fetchInterruptionRequests();
+
+    } catch (err) {
+      console.error('Failed to process interruption:', err);
+      showNotification(
+        `Failed to ${action} interruption: ${err.response?.data?.error || err.message}`,
+        'error');
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
+  // Start polling for pending requests (every 2 minutes)
   useEffect(() => {
     if (!canApprove) return undefined;
 
-    fetchCorrectionRequests(); // Initial fetch
-    fetchMissingWarnings();    // no-ops for a shift incharge
+    fetchCorrectionRequests();   // Initial fetch
+    fetchInterruptionRequests();
+    fetchMissingWarnings();      // no-ops for a shift incharge
 
     pollingRef.current = setInterval(() => {
       fetchCorrectionRequests();
+      fetchInterruptionRequests();
       fetchMissingWarnings();
     }, 2 * 60 * 1000); // 2 minutes
 
@@ -243,12 +325,17 @@ const Header = () => {
             </div>
           )}
 
-          {/* Correction requests -- shift incharges approve these too */}
+          {/* Pending requests -- shift incharges approve these too */}
           {canApprove && (
-            <div 
+            <div
               className="h-notification-icon"
               onClick={() => setIsCorrectionModalOpen(true)}
-              title="Correction Requests"
+              title={
+                pendingCount === 0
+                  ? "No pending requests"
+                  : `${correctionRequests.length} correction, ` +
+                    `${interruptionRequests.length} interruption`
+              }
             >
               <svg 
                 className="h-bell-icon" 
@@ -343,7 +430,7 @@ const Header = () => {
           />
           <div className="h-correction-modal">
             <div className="h-modal-header">
-              <h2 className="h-modal-title">Pending Correction Requests</h2>
+              <h2 className="h-modal-title">Pending Requests</h2>
               <button
                 className="h-modal-close"
                 onClick={() => setIsCorrectionModalOpen(false)}
@@ -355,15 +442,143 @@ const Header = () => {
             </div>
 
             <div className="h-modal-body">
-              {correctionRequests.length === 0 ? (
+              {pendingCount === 0 ? (
                 <div className="h-empty-state">
                   <svg className="h-empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p>No pending correction requests</p>
+                  <p>No pending requests</p>
                 </div>
               ) : (
-                <div className="h-requests-list">
+                <>
+                {interruptionRequests.length > 0 && (
+                  <>
+                    <h3 className="h-queue-heading">
+                      Interruptions ({interruptionRequests.length})
+                    </h3>
+                    <p className="h-queue-note">
+                      Recorded at the machine. Until one is approved it
+                      subtracts nothing, and the minutes stay on the
+                      operator's setup time.
+                    </p>
+                    <div className="h-requests-list">
+                      {interruptionRequests.map((stoppage) => (
+                        <div key={`stoppage-${stoppage.id}`} className="h-request-card">
+                          <div className="h-request-header">
+                            <span className="h-request-id">Interruption #{stoppage.id}</span>
+                            <span className="h-request-changeover">
+                              {stoppage.is_running
+                                ? 'Still running'
+                                : `${(stoppage.duration_minutes ?? 0).toFixed(1)} min`}
+                            </span>
+                          </div>
+
+                          <div className="h-request-info">
+                            <p className="h-request-user">
+                              <strong>Reason:</strong> {stoppage.category
+                                ? `${stoppage.category} — ${stoppage.reason_label}`
+                                : stoppage.reason_label}
+                            </p>
+                            <p className="h-request-user">
+                              <strong>When:</strong> {formatStamp(stoppage.started_at)}
+                              {' → '}
+                              {stoppage.ended_at
+                                ? formatStamp(stoppage.ended_at)
+                                : <span className="na-text">open</span>}
+                            </p>
+                            <p className="h-request-user">
+                              <strong>Recorded by:</strong> {stoppage.recorded_by_label}
+                            </p>
+                            {stoppage.note && (
+                              <p className="h-request-user">
+                                <strong>Note:</strong> {stoppage.note}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="h-request-actions">
+                            <button
+                              className="h-btn-approve"
+                              onClick={() => handleInterruptionAction(stoppage.id, 'approve')}
+                              disabled={processingRequest === `stoppage-${stoppage.id}`}
+                            >
+                              {processingRequest === `stoppage-${stoppage.id}`
+                                ? 'Processing...' : 'Approve'}
+                            </button>
+                            <button
+                              className="h-btn-reject"
+                              onClick={() => {
+                                setRejecting(stoppage.id);
+                                setRejectNote("");
+                              }}
+                              disabled={processingRequest === `stoppage-${stoppage.id}`}
+                            >
+                              Reject
+                            </button>
+                          </div>
+
+                          {/* The server insists on a reason when rejecting,
+                              and the operator who recorded it sees what we
+                              write. Not window.prompt: its "Don't show this
+                              again" checkbox suppresses prompt() for the
+                              whole origin, after which Reject would
+                              silently do nothing. */}
+                          {rejecting === stoppage.id && (
+                            <form
+                              className="h-reject-form"
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                if (!rejectNote.trim()) return;
+                                handleInterruptionAction(
+                                  stoppage.id, 'reject', rejectNote);
+                              }}
+                            >
+                              <label htmlFor={`h-why-${stoppage.id}`}>
+                                Why are you rejecting this?
+                              </label>
+                              <div className="h-reject-row">
+                                <input
+                                  id={`h-why-${stoppage.id}`}
+                                  type="text"
+                                  autoFocus
+                                  placeholder={`${stoppage.recorded_by_label || 'The person who recorded it'} will see this.`}
+                                  value={rejectNote}
+                                  onChange={(e) => setRejectNote(e.target.value)}
+                                />
+                                <button
+                                  type="submit"
+                                  className="h-btn-reject"
+                                  disabled={!rejectNote.trim()
+                                    || processingRequest === `stoppage-${stoppage.id}`}
+                                >
+                                  {processingRequest === `stoppage-${stoppage.id}`
+                                    ? 'Rejecting…' : 'Confirm reject'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="h-btn-cancel"
+                                  onClick={() => {
+                                    setRejecting(null);
+                                    setRejectNote("");
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {correctionRequests.length > 0 && (
+                  <>
+                  <h3 className="h-queue-heading">
+                    Correction requests ({correctionRequests.length})
+                  </h3>
+                  <div className="h-requests-list">
                   {correctionRequests.map((request) => (
                     <div key={request.id} className="h-request-card">
                       <div className="h-request-header">
@@ -412,7 +627,10 @@ const Header = () => {
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                  </>
+                )}
+                </>
               )}
             </div>
           </div>

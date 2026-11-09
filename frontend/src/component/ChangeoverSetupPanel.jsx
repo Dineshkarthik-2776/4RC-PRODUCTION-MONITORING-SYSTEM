@@ -46,6 +46,14 @@ const ChangeoverSetupPanel = ({ changeoverId }) => {
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const canSupervise = ["manager", "shift_incharge"].includes(currentUser.role);
 
+  // Withdrawing an interruption moves minutes back onto whoever was on
+  // the line, so it belongs to a supervisor or to the person who
+  // recorded it -- not to any operator who happens to be looking.
+  const canRemove = (item) =>
+    canSupervise ||
+    (!!currentUser.employee_id &&
+      item.recorded_by_employee_id === currentUser.employee_id);
+
   const [detail, setDetail] = useState(null);
   const [reasons, setReasons] = useState([]);
   const [operators, setOperators] = useState([]);
@@ -305,7 +313,7 @@ const ChangeoverSetupPanel = ({ changeoverId }) => {
               <th>Shift</th>
               <th>From</th>
               <th>To</th>
-              <th className="stm-num">Delay (min)</th>
+              <th className="stm-num">Interruptions (min)</th>
               <th className="stm-num">Setup Time (min)</th>
             </tr>
           </thead>
@@ -435,10 +443,12 @@ const ChangeoverSetupPanel = ({ changeoverId }) => {
                   Reject
                 </button>
               )}
-              <button type="button" className="csp-remove"
-                      onClick={() => remove(item.id)}>
-                Remove
-              </button>
+              {canRemove(item) && (
+                <button type="button" className="csp-remove"
+                        onClick={() => remove(item.id)}>
+                  Remove
+                </button>
+              )}
 
               {/* Inline rather than window.prompt: a native dialog does
                   not match the app, and its "Don't show this again"
