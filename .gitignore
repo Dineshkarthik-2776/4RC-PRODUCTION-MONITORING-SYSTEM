@@ -7,6 +7,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.sqlite3
+
+# Celery beat's own scheduler state -- written every run,
+# meaningless outside the machine that produced it.
+celerybeat-schedule*
 venv/
 .env
 
@@ -18,3 +22,9 @@ venv/
 node_modules/
 dist/
 dist-ssr/
+
+# macOS
+.DS_Store
+
+# Local editor/session config
+.claude/

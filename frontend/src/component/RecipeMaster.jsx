@@ -4,7 +4,7 @@ import axios from "axios";
 import "../css/RecipeMaster.css";
 // fixed error for main
 
-const RecipeMaster = ({ isOpen, onClose, missingWarning, missingRecipes }) => {
+const RecipeMaster = ({ isOpen, onClose, missingWarning, missingRecipes, embedded = false }) => {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const ALLOWED_RECIPE_TYPES = ["Fabric", "Steel"];
 
@@ -280,9 +280,9 @@ const RecipeMaster = ({ isOpen, onClose, missingWarning, missingRecipes }) => {
 
   return (
     <>
-      <div className="rm-overlay" onClick={onClose} />
+      {!embedded && <div className="rm-overlay" onClick={onClose} />}
 
-      <div className="rm-modal">
+      <div className={embedded ? "rm-embedded" : "rm-modal"}>
         <div className="rm-header">
           <h2 className="rm-title">Recipe Master</h2>
           <button className="rm-close-btn" onClick={onClose}>

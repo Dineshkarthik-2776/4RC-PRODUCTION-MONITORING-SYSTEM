@@ -11,15 +11,36 @@ from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework.parsers import MultiPartParser, FormParser ,JSONParser
 from rest_framework.permissions import IsAuthenticated
-from user_authentication.permissions import IsManagerUser
-from .models import RecipeMaster, ChangeoverSummary, StandardTimeMaster, RawLineData
+from user_authentication.models import User
+from user_authentication.permissions import (
+    CanAmendSetupEvent,
+    CanApproveRequests,
+    CanRecordOvershootReason,
+    CanRecordSetupEvent,
+    IsManager,
+    IsManagerOrReadOnly,
+)
+from .models import (
+    RecipeMaster, ChangeoverSummary, StandardTimeMaster, RawLineData,
+    DutySession, LineStoppage, SetupAllocation, SetupAttribution,
+)
+from .setup_capture import (
+    rebuild_allocations,
+    rebuild_for_stoppage,
+    stoppages_overlapping,
+)
 from .tasks import process_changeover_data
 from .serializers import (
     RecipeMasterSerializer,
     RecipeMasterCreateSerializer,
     ChangeoverDetailSerializer,
     ChangeoverUpdateSerializer,
-    StandardTimeSerializer
+    StandardTimeSerializer,
+    DutySessionSerializer,
+    LineStoppageSerializer,
+    SetupAllocationSerializer,
+    SetupAttributionSerializer,
+    StoppageReviewSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +65,7 @@ class StandardTimeListCreateAPIView(generics.ListCreateAPIView):
     """
     queryset = StandardTimeMaster.objects.all()
     serializer_class = StandardTimeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def post(self, request, *args, **kwargs):
         data = request.data
@@ -73,7 +94,7 @@ class StandardTimeDeleteAPIView(generics.DestroyAPIView):
     """
     queryset = StandardTimeMaster.objects.all()
     serializer_class = StandardTimeSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
     
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -88,7 +109,7 @@ from .models import ChangeoverRule
 from .serializers import ChangeoverRuleSerializer
 
 class StandardTimeRuleAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def get(self, request, pk, *args, **kwargs):
         try:
@@ -114,7 +135,7 @@ class StandardTimeRuleAPIView(APIView):
         return Response(serializer.errors, status=400)
         
 class StandardTimeRuleDeleteAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def delete(self, request, pk, rule_id, *args, **kwargs):
         try:
@@ -130,8 +151,9 @@ class StandardTimeRuleDeleteAPIView(APIView):
 # 📁 Recipe Upload API
 # ============================================================
 
-def _normalize_recipe_code(value):
-    return str(value or '').strip().replace(' ', '').upper()
+# Shared with the pipeline -- see data_processor/recipe_codes.py.
+from .recipe_codes import normalize_recipe_code as _normalize_recipe_code
+from .recipe_codes import find_master_by_code, upsert_master_recipe
 
 
 def _is_missing_recipe_type(recipe_type):
@@ -188,7 +210,7 @@ class RecipeMasterAPIView(generics.ListCreateAPIView):
     """
     queryset = RecipeMaster.objects.all()
     serializer_class = RecipeMasterSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManagerOrReadOnly]
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -230,7 +252,7 @@ class RecipeMasterUpdateAPIView(generics.UpdateAPIView):
     """
     queryset = RecipeMaster.objects.all()
     serializer_class = RecipeMasterSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -257,7 +279,7 @@ class RecipeUploadAPIView(APIView):
     1) multipart file field `excel_file` (csv/xls/xlsx)
     2) JSON body with `data: [{recipe_code, recipe_type, target_speed, sap_code?}, ...]`
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def post(self, request, *args, **kwargs):
@@ -333,10 +355,13 @@ class RecipeUploadAPIView(APIView):
                 if sap_code:
                     defaults['sap_code'] = sap_code
 
-                obj, created = RecipeMaster.objects.update_or_create(
-                    recipe_code=recipe_code,
-                    defaults=defaults
-                )
+                # Match on the normalised code so re-uploading a sheet that
+                # spells a recipe differently updates the existing master row
+                # rather than creating a duplicate.
+                obj, created = upsert_master_recipe(recipe_code, defaults=defaults)
+                if obj is None:
+                    failed_rows.append({"row": idx, "error": "recipe_code is empty after normalisation."})
+                    continue
 
                 if created:
                     created_count += 1
@@ -389,14 +414,19 @@ class RecipeUploadAPIView(APIView):
 
 class RecipeExportAPIView(APIView):
     """
-    API endpoint to export all RecipeMaster data as JSON, CSV, or Excel.
+    API endpoint returning the full RecipeMaster as JSON.
+
+    The CSV and Excel branches that used to live here were unreachable:
+    `format` is a reserved DRF content-negotiation parameter, so
+    ?format=csv and ?format=excel returned HTTP 404 ("Not found.") before
+    this view ever ran. Only JSON was ever served. The spreadsheet exports
+    the UI actually offers are /api/changeover-export/ and
+    /api/kepware-logs-export/, which take no `format` parameter.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         try:
-            export_format = request.query_params.get('format', 'json').lower()
-
             recipes = RecipeMaster.objects.all()
 
             if not recipes.exists():
@@ -405,39 +435,15 @@ class RecipeExportAPIView(APIView):
                     status=status.HTTP_200_OK
                 )
 
-            # JSON Format
-            if export_format == 'json':
-                data = {
-                    r.recipe_code: {
-                        "sap_code": r.sap_code,
-                        "type": r.recipe_type,
-                        "target_speed": r.target_speed
-                    }
-                    for r in recipes
+            data = {
+                r.recipe_code: {
+                    "sap_code": r.sap_code,
+                    "type": r.recipe_type,
+                    "target_speed": r.target_speed
                 }
-                return Response(data, status=status.HTTP_200_OK)
-
-            # CSV Format
-            if export_format == 'csv':
-                df = pd.DataFrame(list(recipes.values('recipe_code', 'sap_code', 'recipe_type', 'target_speed')))
-                response = HttpResponse(content_type='text/csv')
-                response['Content-Disposition'] = 'attachment; filename="RecipeMaster_Export.csv"'
-                df.to_csv(path_or_buf=response, index=False)
-                return response
-
-            # Excel Format
-            df = pd.DataFrame(list(recipes.values()))
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df.to_excel(writer, index=False, sheet_name='Recipes')
-            buffer.seek(0)
-
-            response = HttpResponse(
-                buffer,
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-            response['Content-Disposition'] = 'attachment; filename="RecipeMaster_Export.xlsx"'
-            return response
+                for r in recipes
+            }
+            return Response(data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response(
@@ -458,7 +464,7 @@ class MissingRecipeWarningAPIView(APIView):
     API endpoint to fetch distinct recipe codes that caused data to be skipped
     due to missing target speeds in the last 3 days.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def get(self, request, *args, **kwargs):
         from .models import RawLineData
@@ -511,7 +517,10 @@ class ChangeoverStatsAPIView(APIView):
 
         # 2️⃣ Default: show all available shifts for calendar yesterday and today
         if not from_date_str and not to_date_str:
-            now_local = timezone.localtime()
+            # USE_TZ is False, so timezone.now() returns a naive datetime and
+            # timezone.localtime() rejects it. datetime.now() is the correct
+            # call for this project -- see the note in reports/views.py.
+            now_local = datetime.datetime.now()
             from_date_str = (now_local.date() - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
             to_date_str = now_local.date().strftime('%Y-%m-%d')
             logger.info("Using default date window: %s to %s", from_date_str, to_date_str)
@@ -889,7 +898,7 @@ class ChangeoverUpdateAPIView(generics.UpdateAPIView):
     """
     queryset = ChangeoverSummary.objects.all()
     serializer_class = ChangeoverUpdateSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanRecordOvershootReason]
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -908,8 +917,11 @@ class ChangeoverUpdateAPIView(generics.UpdateAPIView):
             )
 
         # 2. Check Role
+        # Managers write directly whatever the elapsed time. A shift incharge
+        # is bound by the 5-hour window below. Operators never reach here --
+        # CanRecordOvershootReason refuses them.
         user = request.user
-        is_manager = (user.role == 'manager' or user.role == 'admin')
+        is_manager = user.is_manager
 
         # 3. Manager Logic
         if is_manager:
@@ -976,9 +988,9 @@ from .models import ChangeoverCorrectionRequest
 class CorrectionRequestListAPIView(generics.ListAPIView):
     """
     List all PENDING correction requests.
-    Managers only.
+    Shift incharges and managers.
     """
-    permission_classes = [IsManagerUser]
+    permission_classes = [CanApproveRequests]
     serializer_class = ChangeoverCorrectionRequestSerializer
 
     def get_queryset(self):
@@ -988,9 +1000,10 @@ class CorrectionRequestListAPIView(generics.ListAPIView):
 class CorrectionRequestActionAPIView(APIView):
     """
     Approve or Reject a correction request.
-    Managers only.
+    Shift incharges and managers -- the people who run the shift are the
+    ones who know whether the claim is true.
     """
-    permission_classes = [IsManagerUser]
+    permission_classes = [CanApproveRequests]
 
     def post(self, request, pk, *args, **kwargs):
         try:
@@ -1038,3 +1051,668 @@ class OvershootOptionsAPIView(generics.ListAPIView):
     queryset = OvershootReasons.objects.all()
     serializer_class = OvershootReasonsSerializer
 
+
+
+# ======================================================================
+# Operator-wise setup capture
+# ======================================================================
+
+def _parse_date(value, fallback=None):
+    """A YYYY-MM-DD query parameter, or the fallback if absent or junk."""
+    if not value:
+        return fallback
+    try:
+        return datetime.datetime.strptime(value, '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return fallback
+
+
+class LineStoppageListCreateAPIView(generics.ListCreateAPIView):
+    """Record that the line has stopped -- while it is stopped.
+
+    This is the live entry point. An operator presses it the moment the
+    line goes down, picks a reason, and leaves `ended_at` empty; they
+    close it when the line runs again. No changeover is named, because
+    at that moment the changeover does not exist yet -- the pipeline
+    only writes one once a setup window has completed.
+
+    Filters: ?status=pending, ?active=true for the open one,
+    ?from= / ?to= for a window.
+
+    Operators may post here even though they are read-only elsewhere.
+    They are the people standing at the machine when it stops, and a
+    stoppage nobody can record silently inflates their own setup figure.
+    """
+
+    serializer_class = LineStoppageSerializer
+    permission_classes = [CanRecordSetupEvent]
+
+    def get_queryset(self):
+        params = self.request.query_params
+        queryset = LineStoppage.objects.select_related(
+            'reason', 'recorded_by', 'reviewed_by')
+
+        state = params.get('status')
+        if state:
+            queryset = queryset.filter(status=state)
+        if params.get('active') in ('1', 'true', 'True'):
+            queryset = queryset.filter(ended_at__isnull=True)
+
+        start = _parse_date(params.get('from'))
+        if start:
+            queryset = queryset.filter(started_at__gte=
+                                       datetime.datetime.combine(
+                                           start, datetime.time.min))
+        finish = _parse_date(params.get('to'))
+        if finish:
+            queryset = queryset.filter(started_at__lt=
+                                       datetime.datetime.combine(
+                                           finish + datetime.timedelta(days=1),
+                                           datetime.time.min))
+        return queryset
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        # Somebody who could approve it is the person who would sign it
+        # off anyway, so asking them to approve their own entry is
+        # theatre. Operators wait for review.
+        auto = user.role in (User.Role.MANAGER, User.Role.SHIFT_INCHARGE)
+        stoppage = serializer.save(
+            recorded_by=user,
+            status=(LineStoppage.Status.APPROVED if auto
+                    else LineStoppage.Status.PENDING),
+            reviewed_by=user if auto else None,
+            reviewed_at=datetime.datetime.now() if auto else None,
+        )
+        # There is no foreign key to follow, so every changeover whose
+        # setup window this touches has to be found by overlap.
+        rebuild_for_stoppage(stoppage)
+
+
+class LineStoppageDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    """Close, correct or withdraw a stoppage.
+
+    Closing one is a PATCH with ended_at -- what the "line running
+    again" button sends.
+
+    Anybody on the floor may record a stoppage, but changing one is
+    narrower: a manager, a shift incharge, or the person who recorded
+    it. Otherwise one operator could withdraw another's interruption
+    and silently move the minutes back onto them.
+    """
+
+    queryset = LineStoppage.objects.select_related(
+        'reason', 'recorded_by', 'reviewed_by')
+    serializer_class = LineStoppageSerializer
+    permission_classes = [CanAmendSetupEvent]
+
+    def perform_update(self, serializer):
+        before = self.get_object()
+        previous_end = before.ended_at
+        stoppage = serializer.save()
+        rebuild_for_stoppage(stoppage)
+        # Shortening a stoppage releases minutes in changeovers it no
+        # longer touches, so those have to be recomputed as well.
+        if previous_end and stoppage.ended_at != previous_end:
+            rebuild_for_stoppage(
+                LineStoppage(started_at=before.started_at,
+                             ended_at=previous_end))
+
+    def perform_destroy(self, instance):
+        snapshot = LineStoppage(started_at=instance.started_at,
+                                ended_at=instance.ended_at)
+        instance.delete()
+        rebuild_for_stoppage(snapshot)
+
+
+class CurrentStoppageAPIView(APIView):
+    """Is the line stopped right now, and since when?
+
+    What the header button reads to decide whether it says "Line
+    stopped" or "Line running again".
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        open_stoppage = LineStoppage.objects.filter(
+            ended_at__isnull=True
+        ).exclude(
+            status=LineStoppage.Status.REJECTED
+        ).select_related('reason', 'recorded_by').order_by('-started_at').first()
+
+        # A stoppage the shift-end task closed, which nobody has yet
+        # said was resolved. The incoming shift is asked about it.
+        handover = LineStoppage.objects.filter(
+            boundary_handover='pending'
+        ).select_related('reason').order_by('-ended_at').first()
+
+        return Response({
+            'now': datetime.datetime.now().isoformat(),
+            'stopped': open_stoppage is not None,
+            'stoppage': (LineStoppageSerializer(open_stoppage).data
+                         if open_stoppage else None),
+            'handover': (LineStoppageSerializer(handover).data
+                         if handover and open_stoppage is None else None),
+        })
+
+
+class StoppageHandoverAPIView(APIView):
+    """The incoming shift answering "was the line still down?".
+
+    Answering CONTINUED opens a fresh stoppage starting at the boundary
+    the previous one was closed at, so the minutes between are not lost
+    and each shift still owns its own record.
+    """
+
+    permission_classes = [CanRecordSetupEvent]
+
+    def post(self, request, pk):
+        try:
+            previous = LineStoppage.objects.select_related('reason').get(pk=pk)
+        except LineStoppage.DoesNotExist:
+            return Response({'error': 'No such stoppage.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        if previous.boundary_handover != 'pending':
+            return Response(
+                {'error': 'That stoppage has already been handed over.'},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        answer = request.data.get('answer')
+        if answer not in ('continued', 'ended'):
+            return Response(
+                {'error': "answer must be 'continued' or 'ended'."},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        previous.boundary_handover = answer
+        previous.save(update_fields=['boundary_handover'])
+
+        if answer == 'ended':
+            return Response({'message': 'Noted -- the line had resumed.',
+                             'stoppage': None}, status=status.HTTP_200_OK)
+
+        if LineStoppage.objects.filter(ended_at__isnull=True).exists():
+            return Response(
+                {'error': 'The line is already recorded as stopped.'},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        auto = user.role in (User.Role.MANAGER, User.Role.SHIFT_INCHARGE)
+        carried = LineStoppage.objects.create(
+            reason=previous.reason,
+            note=previous.note,
+            started_at=previous.ended_at,
+            recorded_by=user,
+            status=(LineStoppage.Status.APPROVED if auto
+                    else LineStoppage.Status.PENDING),
+            reviewed_by=user if auto else None,
+            reviewed_at=datetime.datetime.now() if auto else None,
+        )
+        rebuild_for_stoppage(carried)
+
+        return Response({'message': 'Carried over from the shift change.',
+                         'stoppage': LineStoppageSerializer(carried).data},
+                        status=status.HTTP_201_CREATED)
+
+
+class StoppageReviewAPIView(APIView):
+    """Approve or reject a recorded stoppage.
+
+    A stoppage subtracts minutes from an operator's setup figure, so it
+    is a claim about that operator's performance -- the same kind of
+    claim as an overshoot reason, and it goes to the same people. Until
+    it is approved it changes no number.
+    """
+
+    permission_classes = [CanApproveRequests]
+
+    def post(self, request, pk):
+        try:
+            stoppage = LineStoppage.objects.get(pk=pk)
+        except LineStoppage.DoesNotExist:
+            return Response({'error': 'No such stoppage.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        serializer = StoppageReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data['action']
+
+        stoppage.status = (
+            LineStoppage.Status.APPROVED if action == 'approve'
+            else LineStoppage.Status.REJECTED)
+        stoppage.reviewed_by = request.user
+        stoppage.reviewed_at = datetime.datetime.now()
+        stoppage.review_note = serializer.validated_data.get('note', '')
+        stoppage.save(update_fields=[
+            'status', 'reviewed_by', 'reviewed_at', 'review_note'])
+
+        # Approving makes the minutes stop counting; rejecting gives them
+        # back. Either way the split is recomputed now rather than at the
+        # next pipeline pass.
+        rebuild_for_stoppage(stoppage)
+
+        return Response(LineStoppageSerializer(stoppage).data,
+                        status=status.HTTP_200_OK)
+
+
+class DutyStatusAPIView(APIView):
+    """Who is on the line right now, and when their shift ends.
+
+    Readable by anyone signed in: a shift incharge taking over wants to
+    know who is still showing as on duty.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        open_sessions = DutySession.objects.filter(
+            ended_at__isnull=True).select_related('user').order_by('started_at')
+        return Response({
+            'now': datetime.datetime.now().isoformat(),
+            'on_duty': DutySessionSerializer(open_sessions, many=True).data,
+        })
+
+
+class DutySessionListAPIView(generics.ListAPIView):
+    """Duty history, for checking an operator's attributed time.
+
+    ?start_date / ?end_date filter on production date, ?employee_id on the
+    person.
+    """
+
+    serializer_class = DutySessionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        params = self.request.query_params
+        today = datetime.datetime.now().date()
+        start = _parse_date(params.get('start_date'),
+                            today - datetime.timedelta(days=7))
+        end = _parse_date(params.get('end_date'), today)
+
+        queryset = DutySession.objects.select_related('user').filter(
+            production_date__gte=start, production_date__lte=end)
+
+        employee_id = params.get('employee_id')
+        if employee_id:
+            queryset = queryset.filter(user__employee_id=employee_id.upper())
+        return queryset
+
+
+class SetupTimeSummaryAPIView(APIView):
+    """Setup time grouped the way the dashboard asks for it.
+
+    ?group_by=operator (default), shift, date or machine
+    ?start_date / ?end_date  production dates, inclusive
+    ?shift=A|B|C
+    ?recipe=  the changeover's current recipe, matched loosely
+
+    The same three filters the dashboard toolbar carries, so switching to
+    this tab keeps whatever the person was already looking at. Recipe has
+    to be filtered here rather than in the browser as the other tabs do:
+    this is a server-side aggregate, and filtering totals after the fact
+    is not possible.
+
+    Reports allocated minutes -- the setup window less any recorded
+    interruption -- alongside the gross and interrupted figures, because
+    "two hours of setup, forty minutes of it a breakdown" is a different
+    story from two hours of setup, and an operator judged on the first
+    number deserves to see the second.
+
+    Setup efficiency compares the allocated time against the changeover's
+    standard time. A changeover with no standard time configured is left
+    out of the efficiency figure rather than counted as perfect.
+
+    Supervisors only. This ranks operators against one another, which is
+    a supervisor's view of the shift rather than something to put in
+    front of the people being ranked. An operator still sees how one
+    changeover was split, through ChangeoverSetupDetailAPIView -- that is
+    their own work on one setup, not a league table.
+    """
+
+    permission_classes = [CanApproveRequests]
+
+    GROUPINGS = {
+        'operator': ('operator__employee_id', 'operator__name'),
+        'shift': ('shift',),
+        'date': ('production_date',),
+        'machine': ('changeover__batch',),
+    }
+
+    def get(self, request):
+        params = request.query_params
+        today = datetime.datetime.now().date()
+        start = _parse_date(params.get('start_date'),
+                            today - datetime.timedelta(days=30))
+        end = _parse_date(params.get('end_date'), today)
+
+        group_by = params.get('group_by', 'operator')
+        if group_by not in self.GROUPINGS:
+            return Response(
+                {'error': f"group_by must be one of "
+                          f"{', '.join(sorted(self.GROUPINGS))}."},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        allocations = SetupAllocation.objects.filter(
+            production_date__gte=start, production_date__lte=end)
+
+        shift = params.get('shift')
+        if shift:
+            allocations = allocations.filter(shift=shift.upper())
+
+        # Substring, to match the dashboard's own recipe filter, which
+        # does `current_recipe.includes(selected)` in the browser.
+        recipe = params.get('recipe')
+        if recipe:
+            allocations = allocations.filter(
+                changeover__current_recipe__icontains=recipe)
+
+        fields = self.GROUPINGS[group_by]
+        rows = list(
+            allocations.values(*fields)
+            .annotate(
+                setups=Count('changeover', distinct=True),
+                allocated_minutes=Sum('allocated_minutes'),
+                gross_minutes=Sum('gross_minutes'),
+                interrupted_minutes=Sum('interrupted_minutes'),
+            )
+            .order_by('-allocated_minutes')
+        )
+
+        standard = self._standard_by_group(allocations, fields)
+
+        for row in rows:
+            # Captured before the keys are renamed for display.
+            key = tuple(row[field] for field in fields)
+
+            if group_by == 'operator':
+                row['employee_id'] = row.pop('operator__employee_id') or None
+                row['label'] = row.pop('operator__name') or 'Unattributed'
+            elif group_by == 'machine':
+                row['label'] = f"Batch {row.pop('changeover__batch')}"
+            else:
+                key = fields[0]
+                value = row.pop(key)
+                row['label'] = str(value)
+            setups = row['setups'] or 0
+            # Setup time per changeover, net of any approved delay. This
+            # is what the standard is compared against: a standard is a
+            # target for setup work, and a breakdown is not setup work,
+            # so charging somebody's target with a compound shortage
+            # would make the comparison meaningless.
+            row['average_minutes'] = (
+                round(row['allocated_minutes'] / setups, 2) if setups else 0.0)
+            for field in ('allocated_minutes', 'gross_minutes',
+                          'interrupted_minutes'):
+                row[field] = round(row[field] or 0.0, 2)
+
+            row.update(self._standard_figures(
+                standard.get(key), row['average_minutes']))
+
+        totals = allocations.aggregate(
+            allocated_minutes=Sum('allocated_minutes'),
+            gross_minutes=Sum('gross_minutes'),
+            interrupted_minutes=Sum('interrupted_minutes'),
+            setups=Count('changeover', distinct=True),
+        )
+        for field in ('allocated_minutes', 'gross_minutes',
+                      'interrupted_minutes'):
+            totals[field] = round(totals[field] or 0.0, 2)
+
+        # Across every changeover in range, again counted once each.
+        overall = self._standard_by_group(allocations, ())
+        total_setups = totals['setups'] or 0
+        totals['average_minutes'] = (
+            round(totals['allocated_minutes'] / total_setups, 2)
+            if total_setups else 0.0)
+        totals.update(self._standard_figures(
+            overall.get(()), totals['average_minutes']))
+
+        unattributed = round(
+            allocations.filter(operator__isnull=True)
+            .aggregate(total=Sum('allocated_minutes'))['total'] or 0.0, 2)
+
+        return Response({
+            'group_by': group_by,
+            'start_date': start.isoformat(),
+            'end_date': end.isoformat(),
+            'rows': rows,
+            'totals': totals,
+            'unattributed_minutes': unattributed,
+        })
+
+    @staticmethod
+    def _standard_by_group(allocations, fields):
+        """Standard time per group, counted once per changeover.
+
+        Standard time belongs to the changeover, not to a segment of it.
+        An operator who worked both sides of a shift change has two
+        allocation rows for one changeover, so summing the standard
+        across rows would charge them for it twice -- and the comparison
+        the whole column exists for would be nonsense.
+
+        Changeovers with no standard configured are left out rather than
+        counted as zero, which would drag the average down and read as
+        though somebody beat a target that was never set.
+        """
+        buckets = {}
+        # order_by() clears Meta.ordering first. SetupAllocation orders by
+        # segment_start, and Django adds ordering columns to the SELECT --
+        # which defeats DISTINCT, so every segment came back separately
+        # and a two-segment changeover counted its standard twice.
+        pairs = allocations.order_by().values(
+            *fields, 'changeover_id', 'changeover__standard_time',
+        ).distinct()
+
+        for pair in pairs:
+            key = tuple(pair[field] for field in fields)
+            bucket = buckets.setdefault(key, {'minutes': 0.0, 'count': 0})
+            value = pair['changeover__standard_time']
+            if value is not None:
+                bucket['minutes'] += float(value)
+                bucket['count'] += 1
+        return buckets
+
+    @staticmethod
+    def _standard_figures(bucket, average_actual):
+        """How the group's actual time compares with its standard.
+
+        Nulls rather than zeros where no standard is configured: "no
+        target" and "a target of nothing" are different answers, and the
+        client should be able to tell them apart.
+        """
+        if not bucket or not bucket['count']:
+            return {
+                'standard_minutes': None,
+                'changeovers_with_standard': 0,
+                'average_standard_minutes': None,
+                'variance_minutes': None,
+            }
+
+        average_standard = bucket['minutes'] / bucket['count']
+        return {
+            'standard_minutes': round(bucket['minutes'], 2),
+            'changeovers_with_standard': bucket['count'],
+            'average_standard_minutes': round(average_standard, 2),
+            # Positive means over the target, which is the direction a
+            # plant reads instinctively.
+            'variance_minutes': round(average_actual - average_standard, 2),
+        }
+
+
+class ChangeoverSetupDetailAPIView(APIView):
+    """One changeover's split, with the interruptions behind it.
+
+    Keyed on the primary key, like changeover/update/<pk>/ -- that is the
+    id the dashboard already holds for a row, and batch is a float, which
+    makes for a URL like /setup-time/99100.0/.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            changeover = ChangeoverSummary.objects.get(pk=pk)
+        except ChangeoverSummary.DoesNotExist:
+            return Response({'error': 'No such changeover.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        allocations = changeover.allocations.select_related('operator')
+        # Matched by overlap -- a stoppage has no changeover of its own.
+        stoppages = stoppages_overlapping(
+            changeover.setup_start_timestamp,
+            changeover.setup_complete_timestamp,
+        ) if changeover.setup_start_timestamp and \
+             changeover.setup_complete_timestamp else LineStoppage.objects.none()
+
+        return Response({
+            'id': changeover.pk,
+            'batch': changeover.batch,
+            'shift': changeover.shift,
+            'production_date': changeover.production_date,
+            'setup_start': changeover.setup_start_timestamp,
+            'setup_complete': changeover.setup_complete_timestamp,
+            'setup_time_actual': changeover.setup_time_actual,
+            'standard_time': changeover.standard_time,
+            'allocations': SetupAllocationSerializer(allocations, many=True).data,
+            'interruptions': LineStoppageSerializer(stoppages, many=True).data,
+        })
+
+
+class InterruptionReviewAPIView(APIView):
+    """Approve or reject a recorded interruption. Managers only.
+
+    An interruption subtracts minutes from an operator's setup figure, so
+    it is a claim about that operator's performance -- the same kind of
+    claim as an overshoot reason, and it goes to the same people. Until
+    it is approved it changes no number.
+    """
+
+    permission_classes = [CanApproveRequests]
+
+    def post(self, request, pk):
+        try:
+            interruption = SetupInterruption.objects.select_related(
+                'changeover').get(pk=pk)
+        except SetupInterruption.DoesNotExist:
+            return Response({'error': 'No such interruption.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        serializer = InterruptionReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data['action']
+
+        interruption.status = (
+            SetupInterruption.Status.APPROVED if action == 'approve'
+            else SetupInterruption.Status.REJECTED)
+        interruption.reviewed_by = request.user
+        interruption.reviewed_at = datetime.datetime.now()
+        interruption.review_note = serializer.validated_data.get('note', '')
+        interruption.save(update_fields=[
+            'status', 'reviewed_by', 'reviewed_at', 'review_note'])
+
+        # Approving makes the minutes stop counting; rejecting gives them
+        # back. Either way the split has to be recomputed now rather than
+        # at the next pipeline pass.
+        rebuild_allocations(interruption.changeover)
+
+        return Response(
+            SetupInterruptionSerializer(interruption).data,
+            status=status.HTTP_200_OK)
+
+
+class SetupAttributionAPIView(APIView):
+    """Say who worked a stretch of setup that nobody was signed in for.
+
+    Shift incharges and managers only: it is a judgement about who was on
+    the line, which is exactly what a supervisor is there to know.
+
+    POST with segment_start and employee_id to assign, DELETE with
+    segment_start to take it back.
+    """
+
+    permission_classes = [CanRecordOvershootReason]
+
+    def _changeover(self, pk):
+        try:
+            return ChangeoverSummary.objects.get(pk=pk)
+        except ChangeoverSummary.DoesNotExist:
+            return None
+
+    def post(self, request, pk):
+        changeover = self._changeover(pk)
+        if changeover is None:
+            return Response({'error': 'No such changeover.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        payload = dict(request.data)
+        payload['changeover'] = changeover.pk
+        serializer = SetupAttributionSerializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+
+        operator = serializer.validated_data['employee_id']
+        segment_start = serializer.validated_data['segment_start']
+
+        SetupAttribution.objects.update_or_create(
+            changeover=changeover,
+            segment_start=segment_start,
+            defaults={
+                'operator': operator,
+                'assigned_by': request.user,
+                'note': serializer.validated_data.get('note', ''),
+            },
+        )
+        rebuild_allocations(changeover)
+
+        return Response(
+            {'message': f'{segment_start:%H:%M} assigned to '
+                        f'{operator.name} ({operator.employee_id}).'},
+            status=status.HTTP_200_OK)
+
+    def delete(self, request, pk):
+        changeover = self._changeover(pk)
+        if changeover is None:
+            return Response({'error': 'No such changeover.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        raw = request.query_params.get('segment_start')
+        if not raw:
+            return Response({'error': 'Which segment? Pass segment_start.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            # Parsed rather than handed to the ORM as a string: the
+            # column is a datetime, and a malformed value would surface
+            # as a 500 instead of a complaint about the input.
+            segment_start = datetime.datetime.fromisoformat(raw)
+        except ValueError:
+            return Response(
+                {'error': 'segment_start must look like 2026-11-08T08:00:00.'},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        removed, _ = SetupAttribution.objects.filter(
+            changeover=changeover, segment_start=segment_start).delete()
+        if removed:
+            rebuild_allocations(changeover)
+        return Response({'removed': bool(removed)},
+                        status=status.HTTP_200_OK)
+
+
+class AssignableOperatorsAPIView(APIView):
+    """Operators a setup segment can be assigned to.
+
+    A thin list of its own rather than reusing the user administration
+    endpoint, which is managers-only -- a shift incharge needs to assign
+    setup time without being able to administer accounts.
+    """
+
+    permission_classes = [CanRecordOvershootReason]
+
+    def get(self, request):
+        operators = User.objects.filter(
+            role=User.Role.OPERATOR,
+        ).exclude(status=User.Status.RETIRED).order_by('name')
+        return Response([
+            {'employee_id': person.employee_id, 'name': person.name}
+            for person in operators
+        ])

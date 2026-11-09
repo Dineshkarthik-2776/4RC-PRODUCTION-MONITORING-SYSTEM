@@ -1,0 +1,290 @@
+.st-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1100px, 94vw);
+
+  /* A FIXED height, not max-height. With max-height the panel shrank to
+     fit whichever tab was open -- short for Users, tall for Recipe Master --
+     so the window jumped size every time you switched tab. A constant
+     height keeps the frame still and lets the body scroll inside it. */
+  height: min(760px, 86vh);
+
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.st-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.st-tab {
+  padding: 12px 18px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #5f6368;
+  border-bottom: 2px solid transparent;
+}
+
+.st-tab:hover { color: #202124; }
+
+.st-tab-active {
+  color: #1a73e8;
+  border-bottom-color: #1a73e8;
+}
+
+.st-body {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;          /* lets a flex child actually scroll */
+  padding: 20px 24px 28px; /* bottom breathing room so the last row is not flush */
+  scrollbar-gutter: stable; /* no sideways jump when a tab needs a scrollbar */
+}
+
+/* ---- user management ---- */
+.um-wrapper { padding: 4px 0; }
+
+.um-add-form {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr auto;
+  gap: 10px;
+  padding: 14px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+
+.um-input {
+  padding: 9px 11px;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  width: 100%;
+}
+
+.um-input-sm { padding: 5px 8px; font-size: 13px; }
+
+.um-btn {
+  padding: 9px 14px;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.um-btn:hover:not(:disabled) { background: #f1f3f4; }
+.um-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.um-btn-primary {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+.um-btn-primary:hover:not(:disabled) { background: #1765cc; }
+
+.um-btn-danger { background: #d93025; border-color: #d93025; color: #fff; }
+.um-btn-danger:hover:not(:disabled) { background: #b7271e; }
+
+.um-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.um-table th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid #e5e7eb;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #5f6368;
+}
+.um-table td { padding: 10px 12px; border-bottom: 1px solid #f1f3f4; }
+
+.um-status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.um-tag {
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #e8f0fe;
+  color: #1967d2;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.um-hint { color: #5f6368; font-size: 13px; margin: 8px 0; }
+.um-confirm { display: flex; gap: 6px; }
+
+.um-banner {
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.um-banner-error { background: #fce8e6; color: #c5221f; border: 1px solid #f5c6c4; }
+.um-banner-ok { background: #e6f4ea; color: #137333; border: 1px solid #b7e1c4; }
+
+@media (max-width: 760px) {
+  .um-add-form { grid-template-columns: 1fr; }
+  .um-table { font-size: 13px; }
+}
+
+/* Masters render their own modal shell. Inside Settings they become plain
+   panels: no overlay, no fixed positioning, and no duplicate title bar --
+   the Settings header and tabs already provide those. */
+.rm-embedded {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  box-shadow: none;
+  border-radius: 0;
+  background: transparent;
+  display: block;
+}
+
+/* Hide ONLY the panel's own title bar -- the Settings header and tabs
+   already say which master this is. The direct-child selector matters: the
+   masters open their own sub-dialogs (Add Custom Changeover, Edit), and a
+   loose descendant selector stripped the title off those too. */
+.st-body > .rm-embedded > .rm-header { display: none; }
+.st-body > .rm-embedded > .rm-body { padding: 0; max-height: none; overflow: visible; }
+
+/* Sub-dialogs opened from inside a panel sit above the Settings window. */
+.st-body .rm-modal,
+.st-body .rm-overlay { z-index: 1100; }
+
+/* ------------------------------------------------------------------
+   Master panels inside Settings
+   ------------------------------------------------------------------
+   The master screens reuse .rm-btn-submit for toolbar and table-row
+   buttons, and that class carries `flex: 1` because it was written for
+   a full-width form submit. In the narrow standalone modal that was
+   merely roomy; in this wider panel it stretches a toolbar button
+   across 700px and collides with the heading beside it.
+
+   Buttons sitting in a table cell or in a heading row are actions, not
+   submits, so they size to their label here. Buttons in the edit forms
+   below are left alone -- full width is right for those.
+   ------------------------------------------------------------------ */
+
+.st-body td .rm-btn,
+.st-body th .rm-btn {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  font-size: 13px;
+  min-width: 72px;
+  white-space: nowrap;
+}
+
+/* The "+ Add ..." button that sits beside a section heading. */
+.st-body .rm-section > div:first-child > .rm-btn {
+  flex: 0 0 auto;
+  padding: 9px 18px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* Give the heading room and let it wrap rather than crowd the button. */
+.st-body .rm-section > div:first-child {
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.st-body .rm-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Tables breathe at this width and keep their action column tidy. */
+.st-body table { width: 100%; border-collapse: collapse; }
+.st-body td,
+.st-body th { vertical-align: middle; }
+
+/* Inputs inside the masters were sized for a narrower modal. */
+.st-body .rm-input,
+.st-body .rm-select { max-width: 100%; }
+
+/* The masters render their own section cards; inside a tab the outer
+   padding doubles up with the modal body's own. */
+.st-body .rm-section { margin-bottom: 20px; }
+.st-body .rm-section:last-child { margin-bottom: 0; }
+
+/* Header and tabs must not shrink when the body scrolls. */
+.st-modal > .h-modal-header,
+.st-modal > .st-tabs { flex: 0 0 auto; }
+
+.st-modal > .h-modal-header { padding: 18px 24px; border-bottom: 1px solid #e5e7eb; }
+
+/* Removing somebody is destructive-looking but reversible, so it is a quiet
+   control until confirmed rather than a red button sitting in every row. */
+.um-btn-quiet {
+  color: #b3261e;
+  border-color: #f0c9c6;
+}
+
+.um-btn-quiet:hover:not(:disabled) {
+  background: #fdeceb;
+  border-color: #e59b96;
+}
+
+.um-row-retired td {
+  opacity: 0.62;
+}
+
+/* The administrator changing their own password, in place. */
+.um-password-panel {
+  padding: 14px;
+  margin-bottom: 14px;
+  background: #eef5ff;
+  border: 1px solid #b6d4fe;
+  border-radius: 8px;
+}
+
+.um-password-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #084298;
+}
+
+.um-password-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.um-password-row .um-input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.um-password-row .um-btn {
+  flex: 0 0 auto;
+}

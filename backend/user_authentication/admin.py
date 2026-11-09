@@ -1,22 +1,29 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+
 from .models import User
 
+
+@admin.register(User)
 class UserAdmin(BaseUserAdmin):
     model = User
-    list_display = ('email', 'name', 'role', 'is_staff', 'is_active')
-    list_filter = ('role', 'is_staff', 'is_active')
+    list_display = ('employee_id', 'name', 'role', 'status', 'is_staff', 'is_active')
+    list_filter = ('role', 'status', 'is_staff', 'is_active')
     fieldsets = (
-        (None, {'fields': ('email', 'password', 'name', 'role')}),
-        ('Permissions', {'fields': ('is_staff', 'is_active', 'is_superuser', 'groups', 'user_permissions')}),
+        (None, {'fields': ('employee_id', 'password', 'name', 'role')}),
+        ('Account', {'fields': ('status', 'is_active')}),
+        ('Permissions', {
+            'fields': ('is_staff', 'is_superuser', 'groups', 'user_permissions'),
+            'description': 'An administrator is a Manager with is_staff and '
+                           'is_superuser set. There is no separate admin role.',
+        }),
     )
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'name', 'role', 'password1', 'password2', 'is_staff', 'is_active')}
-        ),
+            'fields': ('employee_id', 'name', 'role', 'password1', 'password2',
+                       'status', 'is_staff', 'is_active'),
+        }),
     )
-    search_fields = ('email', 'name')
-    ordering = ('email',)
-
-admin.site.register(User, UserAdmin)
+    search_fields = ('employee_id', 'name')
+    ordering = ('employee_id',)

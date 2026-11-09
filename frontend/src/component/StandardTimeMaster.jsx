@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "../css/RecipeMaster.css"; // Reusing styles for consistency
 
-const StandardTimeMaster = ({ isOpen, onClose }) => {
+const StandardTimeMaster = ({ isOpen, onClose, embedded = false }) => {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   const [standardTimes, setStandardTimes] = useState([]);
@@ -192,9 +192,12 @@ const StandardTimeMaster = ({ isOpen, onClose }) => {
 
   return (
     <>
-      <div className="rm-overlay" onClick={requestClose} />
+      {!embedded && <div className="rm-overlay" onClick={requestClose} />}
 
-      <div className="rm-modal" style={{ maxWidth: "800px", width: "90vw" }}>
+      <div
+        className={embedded ? "rm-embedded" : "rm-modal"}
+        style={embedded ? undefined : { maxWidth: "800px", width: "90vw" }}
+      >
         <div className="rm-header">
           <h2 className="rm-title">Standard Time Master</h2>
           <button className="rm-close-btn" onClick={requestClose}>

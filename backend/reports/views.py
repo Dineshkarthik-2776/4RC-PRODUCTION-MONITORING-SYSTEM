@@ -3,8 +3,37 @@
 import io
 import datetime
 from django.http import HttpResponse, JsonResponse
-from django.utils import timezone
 from django.db.models import Q
+from rest_framework.decorators import (
+    api_view,
+    permission_classes,
+    renderer_classes,
+)
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.renderers import BaseRenderer
+
+
+class BinaryFileRenderer(BaseRenderer):
+    """Lets DRF's content negotiation through for a file download.
+
+    @api_view brings content negotiation with it, and DRF's default
+    renderers only offer application/json and text/html. This view returns a
+    PDF, so a client asking for `Accept: application/pdf` -- which the
+    dashboard does -- matched no renderer and got 406 Not Acceptable before
+    the view body ever ran.
+
+    Declaring `*/*` makes negotiation always succeed. The view returns a
+    plain HttpResponse, so nothing is actually rendered through this class;
+    it exists to stop negotiation refusing the request.
+    """
+
+    media_type = '*/*'
+    format = 'pdf'
+    charset = None
+    render_style = 'binary'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data
 
 # PDF & Charting Libs
 import matplotlib.pyplot as plt
@@ -50,6 +79,9 @@ def generate_kpi_chart(kpis):
 
 
 # --- Main PDF View (With Corrected Field Names) ---
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@renderer_classes([BinaryFileRenderer])
 def download_summary_report(request):
     """
     A Django view to generate and serve the PDF report.
@@ -61,7 +93,12 @@ def download_summary_report(request):
     end_date_str = request.GET.get('end_date')
     shift = request.GET.get('shift')
 
-    now_local = timezone.localtime()
+    # settings.USE_TZ is False, so this project stores and works in naive
+    # local wall-clock time. timezone.now() therefore returns a naive
+    # datetime, and timezone.localtime() raises ValueError on one -- which
+    # made every request to this endpoint fail, since the call sits above
+    # the parameter check below and ran unconditionally.
+    now_local = datetime.datetime.now()
     end_date = now_local.date()
     start_date = end_date - datetime.timedelta(days=1)
     date_format = '%Y-%m-%d'
@@ -79,8 +116,13 @@ def download_summary_report(request):
             pass
 
     # --- 2. Fetch data using the same day-window logic as stats/export ---
-    from_dt_fallback = timezone.make_aware(datetime.datetime.combine(start_date, datetime.time(7, 0)))
-    to_dt_fallback = timezone.make_aware(datetime.datetime.combine(end_date + datetime.timedelta(days=1), datetime.time(7, 0)))
+    # Naive bounds, matching how the project stores timestamps (USE_TZ=False).
+    # These were previously wrapped in timezone.make_aware(), which was a
+    # no-op: recipe_change_time is a LocalTimeDateTimeField, and its
+    # get_db_prep_value strips the tzinfo straight back off before the query.
+    from_dt_fallback = datetime.datetime.combine(start_date, datetime.time(7, 0))
+    to_dt_fallback = datetime.datetime.combine(
+        end_date + datetime.timedelta(days=1), datetime.time(7, 0))
 
     summaries = ChangeoverSummary.objects.filter(
         recipe_change_time__gte=from_dt_fallback,

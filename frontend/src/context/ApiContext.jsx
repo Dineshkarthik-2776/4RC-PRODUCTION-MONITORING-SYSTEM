@@ -88,29 +88,23 @@ export const ApiProvider = ({ children }) => {
     }
   };
 
-  // Update date range and fetch data
-  const updateDateRange = (startDate, endDate) => {
+  // Apply the whole filter bar at once.
+  //
+  // The filters used to take effect one at a time: picking a shift
+  // refetched immediately, then picking a recipe refetched again, so
+  // narrowing from "all shifts, all recipes, this week" to one
+  // combination walked the dashboard through intermediate results
+  // nobody asked to see. Everything is now staged in the toolbar and
+  // committed here in a single pass.
+  const applyFilters = ({ startDate, endDate, shift, recipe }) => {
     const formattedStart = formatDate(startDate);
     const formattedEnd = formatDate(endDate);
-    
-    setDateRange({
-      from_date: formattedStart,
-      to_date: formattedEnd
-    });
 
-    // Fetch data immediately with current shift
-    fetchChangeoverStats(formattedStart, formattedEnd, selectedShift);
-  };
-
-  // Update shift filter
-  const updateShiftFilter = (shift) => {
+    setDateRange({ from_date: formattedStart, to_date: formattedEnd });
     setSelectedShift(shift);
-    fetchChangeoverStats(dateRange.from_date, dateRange.to_date, shift);
-  };
+    setSelectedRecipe(recipe);
 
-  // Update recipe filter (frontend filtering)
-  const updateRecipeFilter = (recipeName) => {
-    setSelectedRecipe(recipeName);
+    fetchChangeoverStats(formattedStart, formattedEnd, shift);
   };
 
   // Fetch recipe names from API
@@ -200,9 +194,7 @@ export const ApiProvider = ({ children }) => {
     selectedRecipe,
     recipeNames,
     overshootOptions,
-    updateDateRange,
-    updateShiftFilter,
-    updateRecipeFilter,
+    applyFilters,
     fetchRecipeNames,
     fetchOvershootOptions,
     refreshData: () => fetchChangeoverStats(dateRange.from_date, dateRange.to_date, selectedShift),

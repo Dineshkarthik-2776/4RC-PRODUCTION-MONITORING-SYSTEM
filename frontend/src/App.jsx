@@ -8,6 +8,8 @@ import DateIP from './component/DateIP';
 import Login from './component/Login';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ApiProvider } from './context/ApiContext';
+import { ShiftProvider } from './context/ShiftContext';
+import ShiftBanner from './component/ShiftBanner';
 import { NotificationProvider } from './context/NotificationContext';
 
 // Protected Route Component
@@ -24,12 +26,15 @@ const ProtectedRoute = ({ children }) => {
 // Dashboard Layout (Header + DateIP + Content)
 function DashboardLayout({ children }) {
   return (
-    <ApiProvider>
-      <Header />
-      <DateIP />
-      <ToggleBtn />
-      {children}
-    </ApiProvider>
+    <ShiftProvider>
+      <ApiProvider>
+        <Header />
+        <ShiftBanner />
+        <DateIP />
+        <ToggleBtn />
+        {children}
+      </ApiProvider>
+    </ShiftProvider>
   );
 }
 

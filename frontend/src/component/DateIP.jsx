@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DateRange } from "react-date-range";
 import "react-date-range/dist/styles.css"; 
 import "react-date-range/dist/theme/default.css"; 
@@ -6,9 +6,19 @@ import "../css/DateIP.css";
 import { useApiData } from "../context/ApiContext";
 import { useNotification } from "../context/NotificationContext";
 
+// Matches ApiContext's formatDate, so the draft range and the applied
+// range are compared in the same shape. Local parts, never toISOString:
+// that converts to UTC and would shift the date by a day either side of
+// midnight.
+const formatForCompare = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const DateIP = () => {
   const { 
-    updateDateRange, 
     dateRange, 
     loading, 
     error, 
@@ -16,8 +26,7 @@ const DateIP = () => {
     selectedShift,
     selectedRecipe,
     recipeNames,
-    updateShiftFilter,
-    updateRecipeFilter
+    applyFilters
   } = useApiData();
   const { showNotification } = useNotification();
 
@@ -38,11 +47,76 @@ const DateIP = () => {
   ]);
   
   const [showCalendar, setShowCalendar] = useState(false);
+
+  // What the toolbar is showing, which is not yet what the dashboard is
+  // showing. Nothing below reads these until Apply commits them.
+  const [draftShift, setDraftShift] = useState(selectedShift);
+  const [draftRecipe, setDraftRecipe] = useState(selectedRecipe);
+
+  // The filters that are actually in force, as the context last applied
+  // them. Comparing against the draft is what lights up the button.
+  const appliedRange = `${dateRange.from_date}|${dateRange.to_date}`;
+  const draftRangeKey =
+    `${formatForCompare(range[0].startDate)}|${formatForCompare(range[0].endDate)}`;
+  const isDirty =
+    draftShift !== selectedShift ||
+    draftRecipe !== selectedRecipe ||
+    draftRangeKey !== appliedRange;
+
+  // Kepware logs are a separate concern from the summary exports: they pull
+  // raw line data for ONE day, independent of the dashboard date range. The
+  // date input used to sit loose in the button row, which read as a third
+  // filter and pushed the toolbar onto two lines. It now lives in a popover
+  // behind its own button.
+  const [showKepwarePicker, setShowKepwarePicker] = useState(false);
+  const kepwareRef = useRef(null);
+  const calendarRef = useRef(null);
+
+  useEffect(() => {
+    if (!showCalendar) return undefined;
+    const onPointerDown = (e) => {
+      if (calendarRef.current && !calendarRef.current.contains(e.target)) {
+        setShowCalendar(false);
+      }
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setShowCalendar(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showCalendar]);
+
+  useEffect(() => {
+    if (!showKepwarePicker) return undefined;
+    const onPointerDown = (e) => {
+      if (kepwareRef.current && !kepwareRef.current.contains(e.target)) {
+        setShowKepwarePicker(false);
+      }
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setShowKepwarePicker(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showKepwarePicker]);
   const [logDate, setLogDate] = useState(getLocalDateString());
 
   const handleSubmit = () => {
-    // Update context with selected dates
-    updateDateRange(range[0].startDate, range[0].endDate);
+    // One commit for the whole bar -- date, shift and recipe together.
+    applyFilters({
+      startDate: range[0].startDate,
+      endDate: range[0].endDate,
+      shift: draftShift,
+      recipe: draftRecipe,
+    });
     setShowCalendar(false);
   };
 
@@ -210,8 +284,8 @@ const handleDownloadLogs = async () => {
           {/* Shift Filter */}
           <select 
             className="dip-filter-select" 
-            value={selectedShift}
-            onChange={(e) => updateShiftFilter(e.target.value)}
+            value={draftShift}
+            onChange={(e) => setDraftShift(e.target.value)}
           >
             <option value="">All Shifts</option>
             <option value="A">Shift A</option>
@@ -222,8 +296,8 @@ const handleDownloadLogs = async () => {
           {/* Recipe Filter */}
           <select 
             className="dip-filter-select" 
-            value={selectedRecipe}
-            onChange={(e) => updateRecipeFilter(e.target.value)}
+            value={draftRecipe}
+            onChange={(e) => setDraftRecipe(e.target.value)}
           >
             <option value="">All Recipes</option>
             {recipeNames.map(name => (
@@ -231,40 +305,49 @@ const handleDownloadLogs = async () => {
             ))}
           </select>
 
-          {/* Date Range Input */}
-          <input
-            type="text"
-            readOnly
-            value={`${range[0].startDate.toLocaleDateString()} - ${range[0].endDate.toLocaleDateString()}`}
-            onClick={() => setShowCalendar(!showCalendar)}
-            className="dip-date-input"
-            placeholder="Select date range"
-          />
+          {/* Date range. The input and its calendar share a positioned
+              wrapper: without one the popup anchored to .dip-left-section
+              and opened under the first dropdown instead of under the
+              field it belongs to. */}
+          <div className="dip-date-field" ref={calendarRef}>
+            <input
+              type="text"
+              readOnly
+              value={`${range[0].startDate.toLocaleDateString()} - ${range[0].endDate.toLocaleDateString()}`}
+              onClick={() => setShowCalendar(!showCalendar)}
+              className="dip-date-input"
+              placeholder="Select date range"
+              aria-expanded={showCalendar}
+              aria-haspopup="dialog"
+            />
 
+            {showCalendar && (
+              <div className="dip-calendar-popup" role="dialog" aria-label="Select date range">
+                <DateRange
+                  editableDateInputs={true}
+                  onChange={(item) => setRange([item.selection])}
+                  moveRangeOnFirstSelection={false}
+                  ranges={range}
+                  maxDate={new Date()}
+                />
+              </div>
+            )}
+          </div>
 
-          {/* Calendar Popup */}
-          {showCalendar && (
-            <div className="dip-calendar-popup">
-              <DateRange
-                editableDateInputs={true}
-                onChange={(item) => setRange([item.selection])}
-                moveRangeOnFirstSelection={false}
-                ranges={range}
-                maxDate={new Date()}
-              />
-            </div>
-          )}
-
-          {/* GET Button */}
-          <button 
-            className="dip-submit-btn" 
+          {/* Apply. Nothing above this takes effect until it is
+              pressed, so it says when there is something waiting. */}
+          <button
+            className={`dip-submit-btn ${isDirty ? "dip-submit-dirty" : ""}`}
             onClick={handleSubmit}
             disabled={loading}
+            title={isDirty
+              ? "Apply the filters you have changed"
+              : "Reload with the current filters"}
           >
             {loading ? (
               <span className="dip-btn-loader"></span>
             ) : (
-              'GET'
+              'Apply'
             )}
           </button>
 
@@ -279,19 +362,21 @@ const handleDownloadLogs = async () => {
           <button 
             className="dip-report-btn" 
             onClick={handleGenerateReport}
+            title="Generate PDF report for the selected date range"
           >
-            Generate Report
+            Report
           </button>
           <button 
             className="dip-excel-btn" 
             onClick={handleDownloadExcel}
+            title="Download the summary as an Excel file"
           >
             <svg 
               className="dip-excel-icon" 
               fill="none" 
               stroke="currentColor" 
               viewBox="0 0 24 24"
-              style={{width: '18px', height: '18px', marginRight: '8px'}}
+              style={{width: '16px', height: '16px', marginRight: '6px'}}
             >
               <path 
                 strokeLinecap="round" 
@@ -300,20 +385,61 @@ const handleDownloadLogs = async () => {
                 d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
               />
             </svg>
-            Download Excel
+            Excel
           </button>
-          <input
-            type="date"
-            value={logDate}
-            onChange={(e) => setLogDate(e.target.value)}
-            className="dip-date-input dip-date-input-single"
-          />
-          <button
-            className="dip-logs-btn"
-            onClick={handleDownloadLogs}
+          <div
+            className={`dip-kepware${showKepwarePicker ? " dip-kepware-open" : ""}`}
+            ref={kepwareRef}
           >
-            Download Kepware Logs
-          </button>
+            <button
+              type="button"
+              className="dip-logs-btn"
+              onClick={() => setShowKepwarePicker((open) => !open)}
+              aria-expanded={showKepwarePicker}
+              aria-haspopup="dialog"
+              title="Download raw Kepware logs for a single day"
+            >
+              Kepware Logs
+              <svg className="dip-kepware-caret" viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M2 4.5L6 8.5L10 4.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {showKepwarePicker && (
+              <div className="dip-kepware-popover" role="dialog" aria-label="Download Kepware logs">
+                <label className="dip-field-label" htmlFor="dip-kepware-date">
+                  Kepware log date
+                </label>
+                <p className="dip-kepware-hint">
+                  Raw line data for one day, independent of the range above.
+                </p>
+                <input
+                  id="dip-kepware-date"
+                  type="date"
+                  value={logDate}
+                  onChange={(e) => setLogDate(e.target.value)}
+                  className="dip-date-input dip-kepware-input"
+                  autoFocus
+                />
+                <div className="dip-kepware-actions">
+                  <button
+                    type="button"
+                    className="dip-kepware-cancel"
+                    onClick={() => setShowKepwarePicker(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="dip-logs-btn dip-kepware-confirm"
+                    onClick={() => { handleDownloadLogs(); setShowKepwarePicker(false); }}
+                  >
+                    Download
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

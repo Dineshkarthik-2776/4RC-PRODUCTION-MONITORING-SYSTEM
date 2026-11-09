@@ -72,8 +72,30 @@ def to_local_ts(val):
     return ts
 
 
-def _normalize_recipe_code(value):
-    return str(value or '').strip().replace(' ', '').upper()
+# Matching rules live in data_processor/recipe_codes.py so the pipeline, the
+# views and the management commands cannot drift apart. Aliased here because
+# this name is used throughout the module.
+from .recipe_codes import normalize_recipe_code as _normalize_recipe_code
+from .shifts import shift_end_after, shift_for
+from .setup_capture import rebuild_allocations
+from .recipe_codes import upsert_master_recipe
+
+
+def _master_spelling(value, display_map):
+    """Return the recipe code as RecipeMaster spells it.
+
+    Codes are normalised (spaces stripped, upper-cased) for MATCHING, because
+    the same recipe arrives from the sensors in several spellings. But the
+    normalised form is not what operators recognise, and it will not compare
+    equal to the dropdown values the UI builds from RecipeMaster.
+
+    So the summary stores the master's spelling. Recipes with no master row
+    keep their normalised code, which is the only form we have for them.
+    """
+    normalized = _normalize_recipe_code(value)
+    if not normalized:
+        return value
+    return display_map.get(normalized, value)
 
 
 LINE_PASS_CODE = _normalize_recipe_code('LINE PASS')
@@ -267,6 +289,29 @@ def calculate_time_loss(batch, roll2, batch_first):
 
 
 # ======================================================================
+# == SHIFT & PRODUCTION DATE ATTRIBUTION
+# ======================================================================
+
+def calculate_shift_and_date(dt):
+    """The shift and production date for a pipeline timestamp.
+
+    A thin pandas-aware wrapper over shifts.shift_for, which holds the one
+    definition of the boundaries. This used to spell the hours out again,
+    so changing a shift time meant remembering both places.
+    """
+    if pd.isna(dt):
+        return None, None
+
+    if isinstance(dt, pd.Timestamp):
+        dt = dt.to_pydatetime()
+    # Classify on the stored wall-clock time. Re-interpreting an already
+    # stored timestamp through UTC/localtime can push a 06:17 record into
+    # the wrong shift.
+    local_dt = dt.replace(tzinfo=None) if getattr(dt, 'tzinfo', None) is not None else dt
+    return shift_for(local_dt)
+
+
+# ======================================================================
 # == CELERY TASK: process_changeover_data
 # ======================================================================
 
@@ -282,6 +327,8 @@ def process_changeover_data(dev_mode=False):
         recipe_masters = RecipeMaster.objects.all()
         target_map = {_normalize_recipe_code(r.recipe_code): r.target_speed for r in recipe_masters}
         type_map = {_normalize_recipe_code(r.recipe_code): r.recipe_type for r in recipe_masters}
+        # normalised code -> the spelling RecipeMaster holds, for display
+        display_map = {_normalize_recipe_code(r.recipe_code): r.recipe_code for r in recipe_masters}
     except Exception as e:
         print(f"CRITICAL ERROR: Could not fetch RecipeMaster: {e}")
         return "Task failed: Could not load recipe data."
@@ -626,33 +673,6 @@ def process_changeover_data(dev_mode=False):
     # Standard time
     batch_first_nonna['Standard Time'] = batch_first_nonna['Changeover'].map(standard_time_mapping)
 
-    # Calculate shift and production date
-    def calculate_shift_and_date(dt):
-        if pd.isna(dt):
-            return None, None
-        
-        if isinstance(dt, pd.Timestamp):
-            dt = dt.to_pydatetime()
-        # Shift classification is based on the stored wall-clock time.
-        # Avoid re-interpreting an already-stored timestamp through UTC/localtime,
-        # otherwise a 06:17 record can be pushed into the wrong shift bucket.
-        local_dt = dt.replace(tzinfo=None) if getattr(dt, 'tzinfo', None) is not None else dt
-        time_hour = local_dt.hour
-        
-        if 7 <= time_hour < 15:
-            shift = 'A'
-            prod_date = local_dt.date()
-        elif 15 <= time_hour < 23:
-            shift = 'B'
-            prod_date = local_dt.date()
-        else:
-            shift = 'C'
-            if 0 <= time_hour < 7:
-                prod_date = (local_dt - datetime.timedelta(days=1)).date()
-            else:
-                prod_date = local_dt.date()
-        return shift, prod_date
-
     batch_first_nonna['Shift'] = None
     batch_first_nonna['Production Date'] = None
     for idx, row in batch_first_nonna.iterrows():
@@ -698,8 +718,10 @@ def process_changeover_data(dev_mode=False):
                 
                 # Update calculated fields regardless of whether it's new or existing
                 summary.recipe_change_time = clean_value(row['RECIPE CHANGE TIME'])
-                summary.current_recipe = clean_value(row['CURRENT_RECIPE'])
-                summary.previous_recipe = clean_value(row['PREVIOUS_RECIPE'])
+                summary.current_recipe = _master_spelling(
+                    clean_value(row['CURRENT_RECIPE']), display_map)
+                summary.previous_recipe = _master_spelling(
+                    clean_value(row['PREVIOUS_RECIPE']), display_map)
                 summary.ramp_down_timestamp = clean_value(row['RAMP_DOWN'])
                 summary.setup_start_timestamp = clean_value(row['SETUP_START'])
                 summary.ramp_up_timestamp = clean_value(row['RAMP_UP'])
@@ -717,7 +739,14 @@ def process_changeover_data(dev_mode=False):
                 summary.shift = clean_value(row.get('Shift'))
                 summary.production_date = clean_value(row.get('Production Date'))
                 summary.save()
-                
+
+                # Credit this setup window to whoever was on the line for
+                # it. Derived from the duty sessions, so it is rebuilt
+                # every pass -- a changeover whose setup window shifts, or
+                # one whose operator signed in late, corrects itself on the
+                # next run rather than keeping a stale split.
+                rebuild_allocations(summary)
+
                 summary_objects_created += 1
 
             # <--- MODIFIED LOGIC: STRICT DUAL-VERIFICATION (IN & OUT) ---
@@ -838,18 +867,24 @@ def sync_recipe_master_from_bom():
             if not recipe_code:
                 continue
                 
-            recipe_code = str(recipe_code).strip().upper()
+            recipe_code = str(recipe_code).strip()
             sap_code = str(sap_code).strip() if sap_code else None
 
-            # Get or create in RecipeMaster
-            obj, created = RecipeMaster.objects.get_or_create(
-                recipe_code=recipe_code,
+            # Match on the normalised code so a BOM row spelled 'CP034HI' does
+            # not create a second master row beside an existing 'CP 034 HI'.
+            # A new row keeps the ERP's spelling, which becomes the spelling
+            # shown everywhere downstream.
+            obj, created = upsert_master_recipe(
+                recipe_code,
                 defaults={
                     'sap_code': sap_code,
                     'target_speed': 0.0, # Default, must be updated via API later
                     'recipe_type': 'unknown' # Default, must be updated via API later
-                }
+                },
+                update_existing=False,
             )
+            if obj is None:
+                continue
 
             if created:
                 created_count += 1
@@ -870,3 +905,89 @@ def sync_recipe_master_from_bom():
         return error_msg
 
 
+
+
+# ======================================================================
+# == CELERY TASK: end_finished_duty_sessions
+# ======================================================================
+
+@shared_task(name="end_finished_duty_sessions")
+def end_finished_duty_sessions():
+    """Sign operators out once their shift is over.
+
+    An operator's sign-in is the record of who was on the line, so leaving
+    it open past the shift would credit the next shift's setup time to
+    whoever forgot to sign out. Closing it here also revokes the auth
+    token, which is what actually ends the session: the browser's next
+    request comes back 401 and the app returns to the sign-in screen.
+
+    Only operators are affected -- they are the only ones who get a duty
+    session at all. A shift incharge or manager reviewing the dashboard at
+    23:05 stays signed in.
+
+    The browser signs itself out at the boundary too, with a warning
+    beforehand. This task is the backstop for the machine nobody is
+    looking at, and for a browser that was closed mid-shift.
+    """
+    from rest_framework.authtoken.models import Token
+
+    from .models import DutySession
+    from .setup_capture import _close, expired_duty_sessions
+
+    now = datetime.datetime.now()
+    stale = expired_duty_sessions(now)
+    if not stale:
+        return {'closed': 0}
+
+    for session in stale:
+        # _close clamps to the boundary, so the shift ends when it ended
+        # however late this task happens to run.
+        _close(session, now, DutySession.EndReason.SHIFT_ENDED)
+
+    user_ids = {session.user_id for session in stale}
+    Token.objects.filter(user_id__in=user_ids).delete()
+
+    print(f"Shift sign-out: closed {len(stale)} duty session(s) "
+          f"for {len(user_ids)} operator(s).")
+    return {'closed': len(stale), 'operators': len(user_ids)}
+
+
+# ======================================================================
+# == CELERY TASK: close_stoppages_at_shift_end
+# ======================================================================
+
+@shared_task(name="close_stoppages_at_shift_end")
+def close_stoppages_at_shift_end():
+    """Close an open line stoppage when its shift ends.
+
+    An open stoppage has no end, so the allocation treats it as running
+    to the end of whatever setup window it lands in. Left running past
+    its shift it would keep matching every later changeover, and once
+    approved it would remove the setup time from all of them -- damage
+    with no upper bound, from one forgotten button.
+
+    So it is closed at the boundary, exactly as a duty session is, and
+    marked as waiting on the next shift. If the line really is still
+    down, the incoming operator says so and a fresh stoppage starts at
+    the boundary: no minutes lost, and each shift owns its own record.
+    """
+    from .models import LineStoppage
+    from .setup_capture import rebuild_for_stoppage
+
+    now = datetime.datetime.now()
+    closed = 0
+
+    for stoppage in LineStoppage.objects.filter(ended_at__isnull=True):
+        boundary = shift_end_after(stoppage.started_at)
+        if boundary > now:
+            continue
+
+        stoppage.ended_at = boundary
+        stoppage.boundary_handover = 'pending'
+        stoppage.save(update_fields=['ended_at', 'boundary_handover'])
+        rebuild_for_stoppage(stoppage)
+        closed += 1
+
+    if closed:
+        print(f"Shift boundary: closed {closed} open line stoppage(s).")
+    return {'closed': closed}

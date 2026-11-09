@@ -128,6 +128,22 @@
   overflow-x: auto;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  /* Scroll shadows, pure CSS. The two white panels are anchored to the
+     content (background-attachment: local) and the two grey ones to the
+     viewport, so a shadow appears on an edge only while there is more
+     table past it. Without this the table just stops mid-column and
+     reads as broken rather than scrollable. */
+  background:
+    linear-gradient(to right, #ffffff 30%, rgba(255, 255, 255, 0)) left center,
+    linear-gradient(to left, #ffffff 30%, rgba(255, 255, 255, 0)) right center,
+    radial-gradient(farthest-side at 0 50%,
+                    rgba(30, 58, 138, 0.22), rgba(30, 58, 138, 0)) left center,
+    radial-gradient(farthest-side at 100% 50%,
+                    rgba(30, 58, 138, 0.22), rgba(30, 58, 138, 0)) right center;
+  background-repeat: no-repeat;
+  background-size: 32px 100%, 32px 100%, 15px 100%, 15px 100%;
+  background-attachment: local, local, scroll, scroll;
 }
 
 .sd-table {
@@ -142,13 +158,18 @@
 }
 
 .sd-th {
-  padding: 14px 16px;
+  /* Eleven columns at 16px a side spent ~350px on padding alone, which
+     is what pushed the table past the panel. Tighter, and the headings
+     wrap instead of forcing a column as wide as "PRODUCTION DATE". */
+  padding: 12px 10px;
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
+  letter-spacing: 0.3px;
+  line-height: 1.3;
+  white-space: normal;
+  vertical-align: bottom;
 }
 
 .sd-th-left {
@@ -178,15 +199,19 @@
 }
 
 .sd-td {
-  padding: 14px 16px;
+  padding: 12px 10px;
   text-align: center;
   font-size: 14px;
   color: #1F2937;
   border-bottom: 1px solid #93C5FD;
+  white-space: nowrap;
 }
 
+/* Recipe names and timestamps are the long ones; let them wrap rather
+   than widen every column to fit the worst case. */
 .sd-td-left {
   text-align: left;
+  white-space: normal;
 }
 
 .sd-td-bold {
@@ -328,12 +353,6 @@
   padding: 24px 28px;
 }
 
-.sd-single-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
 .sd-single-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));
@@ -388,7 +407,11 @@
 
 .sd-single-inline-row {
   display: grid;
-  grid-template-columns: 22% 60% 18%;
+  /* Sized to the content rather than in percentages: a reason like
+     "Breakdown during setup" needs real width, and the button needs only
+     its own. Percentages gave the button a quarter of a 1400px modal,
+     which is why it stretched. */
+  grid-template-columns: minmax(170px, 1fr) minmax(260px, 2fr) auto;
   gap: 12px;
   align-items: end;
 }
@@ -400,7 +423,10 @@
 }
 
 .sd-inline-action {
-  justify-content: flex-end;
+  /* Cross-axis, so the button keeps its natural width. justify-content
+     is the main axis here -- in a column that is vertical, which is why
+     it did nothing. */
+  align-items: flex-end;
 }
 
 .sd-textarea {
@@ -408,8 +434,13 @@
   resize: vertical;
 }
 
-.sd-single-select {
+/* Compound, because .sd-select further down this file sets width: 120px
+   and a lone .sd-single-select ties with it on specificity -- so the
+   later rule won and clipped the label to "Select Reas". */
+select.sd-single-select,
+.sd-select.sd-single-select {
   width: 100%;
+  min-width: 0;
   height: 40px;
   font-size: 14px;
 }
@@ -479,6 +510,82 @@
   .sd-single-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================
+   SINGLE CHANGEOVER MODAL -- two snap pages
+   ============================================
+   Page one is the changeover itself, page two the operator split. A
+   definite height is what makes a "page" mean anything: without it the
+   body is only as tall as its content and there is nothing to fill. */
+.sd-modal-single {
+  height: min(860px, 90vh);
+}
+
+.sd-modal-single .sd-modal-body {
+  padding: 0;
+  /* Proximity by default: on a short window page one is taller than the
+     panel, and mandatory snapping would keep yanking the view back to
+     the top while somebody is trying to read the bottom of it. */
+  scroll-snap-type: y proximity;
+  scroll-behavior: smooth;
+}
+
+@media (min-height: 820px) {
+  /* Tall enough that a page really is one screenful, so snap firmly --
+     a flick lands on a page rather than between the two. */
+  .sd-modal-single .sd-modal-body {
+    scroll-snap-type: y mandatory;
+  }
+}
+
+.sd-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 100%;
+  padding: 24px 28px;
+  box-sizing: border-box;
+  scroll-snap-align: start;
+}
+
+@media (min-height: 820px) {
+  .sd-page {
+    scroll-snap-stop: always;
+  }
+}
+
+.sd-page + .sd-page {
+  border-top: 1px solid #e5e7eb;
+}
+
+/* The second page is below the fold, so say so -- otherwise the operator
+   split is invisible to anyone who does not think to scroll. */
+.sd-page-hint {
+  margin: auto 0 0;
+  padding-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.sd-page-hint svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Inside a page of its own, the panel's divider and spacing are
+   redundant -- the page break already separates it. */
+.sd-page .csp-panel {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .sd-modal-footer {

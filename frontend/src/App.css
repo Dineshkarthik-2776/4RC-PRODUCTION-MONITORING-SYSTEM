@@ -17,3 +17,60 @@
     font-weight: 600;
 }
 
+
+/* ==================================================================
+   SELECT DROPDOWNS -- one chevron, everywhere
+   ==================================================================
+   None of the app's selects set `appearance: none`, so each rendered
+   the browser's native chevron. That arrow keeps its own offset and
+   ignores the element's padding, so the gap between the label and the
+   arrow differed from control to control, and the arrow sat at a
+   different height from the icons in neighbouring buttons.
+
+   This draws one chevron as a background image at a fixed offset. The
+   class list is explicit because the component rules set `padding`
+   shorthand, which would otherwise override the right padding that
+   keeps the text clear of the arrow.
+   ================================================================== */
+/* element+class, so these beat the components own class rules whatever
+   order the stylesheets happen to load in. The component rules use the
+   `background` and `padding` SHORTHANDS, which reset background-image and
+   padding-right -- a plain class selector here lost that cascade. */
+select,
+select.dip-filter-select,
+select.um-input,
+select.rm-select,
+select.rm-input,
+select.sd-select,
+select.stm-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4.5L6 8.5L10 4.5' fill='none' stroke='%236B7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 12px;
+  padding-right: 34px;
+}
+
+/* Text inputs share these classes with the selects in some components,
+   and they must not get a chevron. */
+input.um-input,
+input.rm-input,
+input.rm-select,
+input.sd-select {
+  background-image: none;
+  padding-right: 12px;
+}
+
+select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Smaller controls get a correspondingly tighter arrow. */
+select.um-input-sm {
+  background-position: right 9px center;
+  background-size: 11px 11px;
+  padding-right: 28px;
+}

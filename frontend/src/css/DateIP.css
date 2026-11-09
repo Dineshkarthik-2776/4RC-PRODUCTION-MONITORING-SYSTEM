@@ -5,7 +5,7 @@
 
 .dip-header {
   text-align: center;
-  padding: 40px 0 32px 0;
+  padding: 28px 0 20px 0;
 }
 
 .dip-title {
@@ -15,15 +15,49 @@
   margin: 0;
 }
 
+/* Controls toolbar.
+   Previously this was a single flex row with justify-content: space-between.
+   The two groups together need ~1458px, so below that they wrap -- and once
+   wrapped each line holds one item, which space-between pins to the LEFT.
+   The result was two ragged rows that looked accidental rather than designed.
+
+   It is now an explicit panel: filters on one line, actions on the next,
+   both left-aligned, on a surface that marks them as one unit. The width
+   calculation makes the panel line up exactly with the tab bar and content
+   card below (both 96% minus their 20px gutters). */
 .dip-container {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 96%;
-  margin: 0 auto;
-  padding: 0 20px;
-  gap: 16px;
+  justify-content: flex-start;
   flex-wrap: wrap;
+  width: calc(96% - 40px);
+  margin: 0 auto 18px;
+  padding: 14px 16px;
+  box-sizing: border-box;
+  column-gap: 16px;
+  row-gap: 12px;
+  background: #f8f9fb;
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+}
+
+/* Neither group grows. Growing made the actions group stretch to the row
+   end while its buttons stayed packed at its left, which is where the empty
+   band after "Kepware Logs" came from -- the slack was INSIDE the group. */
+.dip-left-section,
+.dip-btn-group {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Once both groups fit on one line, hand all the slack to the space BETWEEN
+   them: filters left, exports hard against the right edge. Below that width
+   they wrap, and the auto margin would shove the second row off to the
+   right on its own, so it only applies while they share a line. */
+@media (min-width: 1240px) {
+  .dip-btn-group {
+    margin-left: auto;
+  }
 }
 
 .dip-left-section {
@@ -87,9 +121,15 @@
 }
 
 /* Calendar Popup */
+/* Anchored to .dip-date-field, which wraps the input it belongs to. */
+.dip-date-field {
+  position: relative;
+  display: inline-flex;
+}
+
 .dip-calendar-popup {
   position: absolute;
-  top: 48px;
+  top: calc(100% + 8px);
   left: 0;
   z-index: 1000;
   background: #FFFFFF;
@@ -140,6 +180,24 @@
 .dip-submit-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Filters are staged, so the screen can disagree with the toolbar.
+   The ring says there is a change waiting to be applied -- without it
+   you cannot tell whether what you are reading reflects the dropdowns
+   above it. Not colour alone: a ring and a pulse carry it too. */
+.dip-submit-dirty:not(:disabled) {
+  box-shadow: 0 0 0 3px rgba(255, 213, 0, 0.45);
+  animation: dip-apply-nudge 1.6s ease-in-out infinite;
+}
+
+@keyframes dip-apply-nudge {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(255, 213, 0, 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(255, 213, 0, 0.18); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dip-submit-dirty:not(:disabled) { animation: none; }
 }
 
 .dip-report-btn {
@@ -199,6 +257,7 @@
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 /* Button Loader */
@@ -268,8 +327,168 @@
     width: 100%;
   }
 
+  .dip-date-field {
+    width: 100%;
+  }
+
+  /* On a phone the calendar is wider than the field, so centre it on the
+     screen rather than letting it run off the right edge. */
   .dip-calendar-popup {
     left: 50%;
     transform: translateX(-50%);
+    max-width: calc(100vw - 32px);
   }
+}
+
+/* Below 768px the dashboard cards drop to 12px gutters (.tb-dashboard), so
+   the toolbar has to follow or it sits 8px inside them on each edge. */
+@media (max-width: 768px) {
+  .dip-container {
+    width: calc(96% - 24px);
+    padding: 12px;
+    row-gap: 10px;
+  }
+
+  .dip-kepware,
+  .dip-kepware > .dip-logs-btn {
+    width: 100%;
+  }
+
+  .dip-kepware-popover {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+}
+
+
+/* ------------------------------------------------------------------
+   Kepware log download
+   ------------------------------------------------------------------
+   Kepware logs are raw line data for ONE day, chosen independently of
+   the dashboard date range. Previously the date input sat loose in the
+   button row beside Generate Report and Download Excel -- which both
+   use the range above -- so two unrelated date concepts sat side by
+   side with nothing distinguishing them. It also cost 180px, which is
+   what pushed the toolbar onto a second line.
+
+   The date now lives in a popover behind its own button: one control
+   in the bar, and the day is chosen at the moment you ask for it.
+   ------------------------------------------------------------------ */
+.dip-kepware {
+  position: relative;
+  display: inline-flex;
+}
+
+.dip-kepware > .dip-logs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dip-kepware-caret {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.dip-kepware-popover {
+  position: absolute;
+  /* Clears the toolbar panel edge rather than starting inside it. */
+  top: calc(100% + 14px);
+  right: 0;
+  z-index: 1000;
+  width: 248px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  animation: dip-slideDown 0.18s ease-out;
+  text-align: left;
+}
+
+/* A pointer tying the panel back to its button.
+
+   It hangs off .dip-kepware -- the wrapper, which is exactly the button
+   width -- rather than off the popover. The popover is 248px against a
+   154px button, so any fixed offset from ITS edge lands somewhere
+   arbitrary: at right: 26px the arrow sat under the chevron, 45px right of
+   the button centre. left: 50% of the wrapper is the button centre by
+   definition, whatever the label says. */
+.dip-kepware-open::before,
+.dip-kepware-open::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%) rotate(45deg);
+  z-index: 1001;
+  pointer-events: none;
+}
+
+/* The popover opens at calc(100% + 14px); the arrow straddles that edge. */
+.dip-kepware-open::before {
+  top: calc(100% + 8px);
+  background: #e5e7eb;
+}
+
+.dip-kepware-open::after {
+  top: calc(100% + 9px);
+  background: #ffffff;
+}
+
+.dip-kepware-hint {
+  margin: 5px 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6b7280;
+}
+
+/* .dip-date-input carries min-width: 260px for the toolbar, which beats a
+   plain width: 100% here and pushed the field 43px out through the side of
+   the popover. The compound selector outranks it; min-width: 0 lets the
+   field shrink to the panel. */
+.dip-kepware-popover .dip-kepware-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+}
+
+.dip-kepware-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dip-kepware-cancel {
+  padding: 8px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dip-kepware-cancel:hover {
+  background: #f3f4f6;
+}
+
+.dip-kepware-confirm {
+  padding: 8px 18px;
+  font-size: 13px;
+}
+
+.dip-field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #6b7280;
+  line-height: 1;
 }
