@@ -109,10 +109,10 @@ DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.mysql',
 #         'NAME': 'dashboard',
-#         'USER': 'dinesh',
-#         'PASSWORD': '2776',
+#         'USER': 'dashboard',
+#         'PASSWORD': 'dashboard123',
 #         'HOST': 'localhost',
-#         'PORT': '3306',
+#         'PORT': '3307',
 #     }
 # }
 
